@@ -2,11 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInventoryStore, type StockAdjustment } from '@/stores/inventory'
-import { ArrowLeft, Save, CheckCircle } from '@lucide/vue'
+import { ArrowLeft, Save, CheckCircle, Loader2 } from '@lucide/vue'
+import { useToast } from '@/composables/useToast'
 
 import AdjustmentDetailsCard from '@/components/inventory/adjustments/AdjustmentDetailsCard.vue'
 import AdjustmentItemsCard from '@/components/inventory/adjustments/AdjustmentItemsCard.vue'
 import AdjustmentApprovalCard from '@/components/inventory/adjustments/AdjustmentApprovalCard.vue'
+import AttachmentUpload from '@/components/common/AttachmentUpload.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,15 +18,17 @@ const isNew = computed(() => route.params.id === undefined || route.params.id ==
 
 const adjustment = ref<StockAdjustment | any>({
   id: '',
-  date: '',
+  date: new Date().toISOString(),
   locationId: '',
-  type: 'Decrease',
+  type: '',
   reason: '',
   notes: '',
   status: 'Draft',
   items: [],
   createdBy: 'Current User'
 })
+
+const attachments = ref<File[]>([])
 
 onMounted(() => {
   if (!isNew.value) {
@@ -39,37 +43,86 @@ onMounted(() => {
 
 const isReadOnly = computed(() => !isNew.value && adjustment.value.status !== 'Draft')
 const canApprove = computed(() => !isNew.value && adjustment.value.status === 'Pending Approval')
+const canComplete = computed(() => !isNew.value && adjustment.value.status === 'Approved')
 
-const submitForApproval = () => {
-  if (!adjustment.value.locationId || !adjustment.value.reason || adjustment.value.items.length === 0) {
-    alert('Please complete all required fields and add at least one item.')
+const isSubmitting = ref(false)
+const { showToast } = useToast()
+
+const submitForApproval = async () => {
+  if (isSubmitting.value) return
+  
+  if (!adjustment.value.locationId || !adjustment.value.type || !adjustment.value.reason || adjustment.value.items.length === 0) {
+    showToast('Validation Error', 'Please complete all required fields and add at least one item.', 'error')
     return
   }
   
-  if (isNew.value) {
-    const created = store.createAdjustment({
-      locationId: adjustment.value.locationId,
-      type: adjustment.value.type,
-      reason: adjustment.value.reason,
-      notes: adjustment.value.notes,
-      items: adjustment.value.items,
-      createdBy: 'Store Manager'
-    })
-    router.push(`/inventory/adjustments/${created.id}`)
-  } else {
-    // If it was somehow a draft that was edited
+  isSubmitting.value = true
+  try {
+    if (isNew.value) {
+      const created = await store.createAdjustment({
+        locationId: adjustment.value.locationId,
+        type: adjustment.value.type,
+        reason: adjustment.value.reason,
+        notes: adjustment.value.notes,
+        items: adjustment.value.items,
+        createdBy: 'Store Manager'
+      })
+      if (created) {
+        await store.submitAdjustment(created.id)
+        showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
+        router.push(`/inventory/adjustments/${created.id}`)
+      }
+    } else {
+      if (adjustment.value.id && adjustment.value.status === 'Draft') {
+        await store.submitAdjustment(adjustment.value.id)
+        showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
+        refreshLocalCopy()
+      }
+    }
+  } catch (err: any) {
+    showToast('Submission Failed', err.message || 'An error occurred during submission.', 'error')
+  } finally {
+    isSubmitting.value = false
   }
 }
 
-const approve = () => {
-  store.approveAdjustment(adjustment.value.id)
-  // Refresh local copy
-  setTimeout(() => {
-    const updated = store.stockAdjustments.find(a => a.id === adjustment.value.id)
-    if (updated) {
-      adjustment.value = JSON.parse(JSON.stringify(updated))
-    }
-  }, 1100) // Wait for simulate complete
+const refreshLocalCopy = () => {
+  const updated = store.stockAdjustments.find(a => a.id === adjustment.value.id)
+  if (updated) {
+    adjustment.value = JSON.parse(JSON.stringify(updated))
+  }
+}
+
+const isApproving = ref(false)
+
+const approve = async () => {
+  if (isApproving.value) return
+  isApproving.value = true
+  try {
+    await store.approveAdjustment(adjustment.value.id)
+    showToast('Adjustment approved', 'The adjustment is ready to be completed.', 'success')
+    refreshLocalCopy()
+  } catch (err: any) {
+    showToast('Approval Failed', err.message || 'An error occurred during approval.', 'error')
+  } finally {
+    isApproving.value = false
+  }
+}
+
+const isCompleting = ref(false)
+
+const complete = async () => {
+  if (isCompleting.value) return
+  isCompleting.value = true
+  try {
+    await store.completeAdjustment(adjustment.value.id)
+    showToast('Stock adjustment completed', 'Inventory has been updated successfully.', 'success')
+    refreshLocalCopy()
+  } catch (err: any) {
+    showToast('Completion Failed', err.message || 'An error occurred during completion.', 'error')
+  } finally {
+    isCompleting.value = false
+  }
 }
 </script>
 
@@ -90,14 +143,22 @@ const approve = () => {
       </div>
       <div class="mt-4 sm:mt-0 flex space-x-3">
         <!-- Actions based on state -->
-        <button v-if="isNew || adjustment.status === 'Draft'" @click="submitForApproval" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5">
-          <Save class="w-4 h-4 mr-2" />
-          Submit for Approval
+        <button v-if="isNew || adjustment.status === 'Draft'" @click="submitForApproval" :disabled="isSubmitting" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
+          <Save v-else class="w-4 h-4 mr-2" />
+          {{ isSubmitting ? 'Submitting...' : 'Submit for Approval' }}
         </button>
         
-        <button v-if="canApprove" @click="approve" class="inline-flex items-center text-white bg-green-600 hover:bg-green-700 font-medium rounded-lg text-sm px-5 py-2.5">
-          <CheckCircle class="w-4 h-4 mr-2" />
-          Approve & Complete
+        <button v-if="canApprove" @click="approve" :disabled="isApproving" class="inline-flex items-center text-white bg-green-600 hover:bg-green-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Loader2 v-if="isApproving" class="w-4 h-4 mr-2 animate-spin" />
+          <CheckCircle v-else class="w-4 h-4 mr-2" />
+          {{ isApproving ? 'Approving...' : 'Approve Request' }}
+        </button>
+
+        <button v-if="canComplete" @click="complete" :disabled="isCompleting" class="inline-flex items-center text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Loader2 v-if="isCompleting" class="w-4 h-4 mr-2 animate-spin" />
+          <CheckCircle v-else class="w-4 h-4 mr-2" />
+          {{ isCompleting ? 'Completing...' : 'Complete & Mutate Stock' }}
         </button>
       </div>
     </div>
@@ -135,6 +196,11 @@ const approve = () => {
             <li>Attachments for evidence (e.g., photo of damaged goods) should be uploaded before submitting.</li>
             <li>All manual corrections require managerial approval.</li>
           </ul>
+        </div>
+        
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Evidence Attachments</h3>
+          <AttachmentUpload v-model="attachments" />
         </div>
       </div>
       

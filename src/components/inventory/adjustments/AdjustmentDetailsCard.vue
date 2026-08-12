@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 const props = defineProps<{
   modelValue: {
     locationId: string
-    type: 'Increase' | 'Decrease'
+    type: 'Increase' | 'Decrease' | ''
     reason: string
     notes: string
   }
@@ -19,9 +19,10 @@ const emit = defineEmits<{
 const store = useInventoryStore()
 const { locations } = storeToRefs(store)
 
-const reasons = {
+const reasons: Record<string, string[]> = {
   Increase: ['Found/Manual Correction', 'Initial Stock', 'Production'],
-  Decrease: ['Damaged', 'Expired', 'Lost', 'Return to Supplier', 'Manual Correction']
+  Decrease: ['Damaged', 'Expired', 'Lost', 'Return to Supplier', 'Manual Correction'],
+  '': []
 }
 
 const updateField = (field: string, value: string) => {
@@ -68,6 +69,7 @@ const updateField = (field: string, value: string) => {
           :disabled="isReadOnly"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 disabled:opacity-50 disabled:bg-gray-100"
         >
+          <option value="" disabled>Select adjustment type</option>
           <option value="Decrease">Decrease Stock (-)</option>
           <option value="Increase">Increase Stock (+)</option>
         </select>

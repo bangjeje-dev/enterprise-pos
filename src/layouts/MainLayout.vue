@@ -2,6 +2,7 @@
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/navigation/AppSidebar.vue'
 import AppBreadcrumb from '@/components/layout/AppBreadcrumb.vue'
+import ToastContainer from '@/components/common/ToastContainer.vue'
 import { useSidebar } from '@/composables/useSidebar'
 
 const { isCollapsed } = useSidebar()
@@ -9,6 +10,7 @@ const { isCollapsed } = useSidebar()
 
 <template>
   <div class="antialiased bg-gray-50 text-gray-900 min-h-screen">
+    <ToastContainer />
     <AppHeader />
     
     <AppSidebar />

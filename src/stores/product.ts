@@ -1,137 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { mockErpApi, type Product, type ProductStatus, type ProductType } from '@/services/mockErpApi'
 
-export type ProductType = 'Inventory Item' | 'Service' | 'Non-Inventory' | 'Bundle' | 'Variant Product'
-export type ProductStatus = 'Draft' | 'Active' | 'Inactive' | 'Archived'
-
-export interface Product {
-  id: string
-  name: string
-  description?: string
-  sku: string
-  barcode?: string
-  multipleBarcodes?: string[]
-  type: ProductType
-  category: string
-  brand?: string
-  
-  // Pricing
-  basePrice: number
-  costPrice?: number
-  retailPrice?: number
-  wholesalePrice?: number
-  memberPrice?: number
-  promotionalPrice?: number
-  
-  // Tax & Supplier (ERP controlled)
-  taxClass: string
-  supplier?: string
-  erpManaged: boolean
-  
-  // Inventory
-  trackInventory: boolean
-  openingStock?: number
-  currentStock: number
-  minStock: number
-  maxStock?: number
-  safetyStock?: number
-  reorderLevel?: number
-  unit: string
-  
-  status: ProductStatus
-  
-  // Media & Mock Data
-  images?: string[]
-  variants?: any[]
-  branchInventory?: any[]
-  
-  createdBy?: string
-  updatedBy?: string
-  createdAt: string
-  updatedAt: string
-}
+export type { Product, ProductStatus, ProductType }
 
 export const useProductStore = defineStore('product', () => {
-  // Mock Data Initialization
-  const products = ref<Product[]>([
-    {
-      id: '1',
-      name: 'Premium Coffee Blend (1kg)',
-      description: 'House blend espresso roast',
-      sku: 'PRD-000001',
-      barcode: '8991234567890',
-      type: 'Inventory Item',
-      category: 'Beverages',
-      brand: 'Kopi Kenangan',
-      basePrice: 125000,
-      costPrice: 85000,
-      taxClass: 'Standard 11%',
-      erpManaged: true,
-      trackInventory: true,
-      currentStock: 45,
-      minStock: 10,
-      unit: 'BAG',
-      status: 'Active',
-      createdAt: '2026-08-01T08:00:00Z',
-      updatedAt: '2026-08-01T08:00:00Z'
-    },
-    {
-      id: '2',
-      name: 'Oat Milk (1L)',
-      description: 'Barista edition oat milk',
-      sku: 'PRD-000002',
-      barcode: '8999876543210',
-      type: 'Inventory Item',
-      category: 'Dairy & Alternatives',
-      brand: 'Oatly',
-      basePrice: 45000,
-      costPrice: 32000,
-      taxClass: 'Standard 11%',
-      erpManaged: true,
-      trackInventory: true,
-      currentStock: 4,
-      minStock: 12,
-      unit: 'PCS',
-      status: 'Active',
-      createdAt: '2026-08-02T09:30:00Z',
-      updatedAt: '2026-08-05T14:20:00Z'
-    },
-    {
-      id: '3',
-      name: 'Delivery Fee',
-      sku: 'PRD-000003',
-      type: 'Service',
-      category: 'Services',
-      basePrice: 15000,
-      taxClass: 'Zero Rated',
-      erpManaged: false,
-      trackInventory: false,
-      currentStock: 0,
-      minStock: 0,
-      unit: 'TRX',
-      status: 'Active',
-      createdAt: '2026-08-01T08:00:00Z',
-      updatedAt: '2026-08-01T08:00:00Z'
-    },
-    {
-      id: '4',
-      name: 'Almond Croissant',
-      sku: 'PRD-000004',
-      type: 'Inventory Item',
-      category: 'Pastries',
-      basePrice: 35000,
-      costPrice: 15000,
-      taxClass: 'Standard 11%',
-      erpManaged: false,
-      trackInventory: true,
-      currentStock: 12,
-      minStock: 5,
-      unit: 'PCS',
-      status: 'Active',
-      createdAt: '2026-08-06T06:15:00Z',
-      updatedAt: '2026-08-06T06:15:00Z'
-    }
-  ])
+  const products = ref<Product[]>([])
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
   // Filters State
   const searchQuery = ref('')
@@ -141,8 +17,8 @@ export const useProductStore = defineStore('product', () => {
   const filterType = ref('')
   const filterSupplier = ref('')
   const filterTaxClass = ref('')
-  const filterErpStatus = ref('') // 'synced', 'manual'
-  const filterStockStatus = ref('') // 'in_stock', 'low_stock', 'out_of_stock'
+  const filterErpStatus = ref('') 
+  const filterStockStatus = ref('') 
   
   // Getters
   const filteredProducts = computed(() => {
@@ -204,41 +80,87 @@ export const useProductStore = defineStore('product', () => {
   }
 
   // Actions
-  const addProduct = (product: Product) => {
-    products.value.push(product)
-  }
-
-  const updateProduct = (id: string, updates: Partial<Product>) => {
-    const index = products.value.findIndex(p => p.id === id)
-    if (index !== -1) {
-      products.value[index] = { 
-        ...products.value[index], 
-        ...updates, 
-        updatedAt: new Date().toISOString() 
-      } as Product
+  const fetchProducts = async () => {
+    isLoading.value = true
+    error.value = null
+    try {
+      products.value = await mockErpApi.getProducts()
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch products'
+    } finally {
+      isLoading.value = false
     }
   }
 
-  const deleteProduct = (id: string) => {
-    products.value = products.value.filter(p => p.id !== id)
+  const addProduct = async (product: Product) => {
+    isLoading.value = true
+    try {
+      const newProduct = await mockErpApi.createProduct(product)
+      products.value.push(newProduct)
+    } catch (err: any) {
+      error.value = err.message
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updateProduct = async (id: string, updates: Partial<Product>) => {
+    isLoading.value = true
+    try {
+      const updated = await mockErpApi.updateProduct(id, updates)
+      const index = products.value.findIndex(p => p.id === id)
+      if (index !== -1) {
+        products.value[index] = updated
+      }
+    } catch (err: any) {
+      error.value = err.message
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const deleteProduct = async (id: string) => {
+    isLoading.value = true
+    try {
+      await mockErpApi.deleteProduct(id)
+      products.value = products.value.filter(p => p.id !== id)
+    } catch (err: any) {
+      error.value = err.message
+    } finally {
+      isLoading.value = false
+    }
   }
 
   // Bulk Actions
-  const bulkUpdateStatus = (ids: string[], newStatus: ProductStatus) => {
-    products.value = products.value.map(p => {
-      if (ids.includes(p.id)) {
-        return { ...p, status: newStatus, updatedAt: new Date().toISOString() }
-      }
-      return p
-    })
+  const bulkUpdateStatus = async (ids: string[], newStatus: ProductStatus) => {
+    // In a real app, this would be a single API call
+    isLoading.value = true
+    try {
+      await Promise.all(ids.map(id => mockErpApi.updateProduct(id, { status: newStatus })))
+      await fetchProducts()
+    } catch (err: any) {
+      error.value = err.message
+    } finally {
+      isLoading.value = false
+    }
   }
 
-  const bulkDelete = (ids: string[]) => {
-    products.value = products.value.filter(p => !ids.includes(p.id))
+  const bulkDelete = async (ids: string[]) => {
+    isLoading.value = true
+    try {
+      await Promise.all(ids.map(id => mockErpApi.deleteProduct(id)))
+      await fetchProducts()
+    } catch (err: any) {
+      error.value = err.message
+    } finally {
+      isLoading.value = false
+    }
   }
 
   return {
     products,
+    isLoading,
+    error,
     searchQuery,
     filterCategory,
     filterStatus,
@@ -250,6 +172,7 @@ export const useProductStore = defineStore('product', () => {
     filterStockStatus,
     filteredProducts,
     getProductById,
+    fetchProducts,
     addProduct,
     updateProduct,
     deleteProduct,
