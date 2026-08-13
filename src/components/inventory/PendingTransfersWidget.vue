@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { useInventoryStore } from '@/stores/inventory'
 import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import { Clock, Truck, ArrowRight } from '@lucide/vue'
 
 const store = useInventoryStore()
-const { pendingTransfers } = storeToRefs(store)
+const { stockTransfers } = storeToRefs(store)
+
+const pendingTransfers = computed(() => {
+  return stockTransfers.value.filter(t => t.status === 'Pending Approval' || t.status === 'In Transit')
+})
 
 const formatDate = (dateStr: string) => {
   const d = new Date(dateStr)
@@ -47,7 +52,7 @@ const formatDate = (dateStr: string) => {
               
               <div class="flex items-center justify-between mt-2">
                 <span class="text-xs font-medium bg-gray-100 text-gray-800 px-2 py-0.5 rounded">
-                  {{ transfer.itemCount }} Items
+                  {{ transfer.items?.length || 0 }} Items
                 </span>
                 <span :class="[
                   'text-xs font-medium px-2 py-0.5 rounded border',

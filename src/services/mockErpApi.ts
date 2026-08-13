@@ -66,13 +66,22 @@ export interface StockMovement {
   referenceId: string
 }
 
-export interface PendingTransfer {
+export interface StockTransferItem {
+  id: string
+  productId: string
+  transferQty: number
+  receivedQty: number
+}
+
+export interface StockTransfer {
   id: string
   date: string
   sourceId: string
   destinationId: string
-  itemCount: number
-  status: 'Pending Approval' | 'In Transit'
+  notes: string
+  status: 'Draft' | 'Pending Approval' | 'Approved' | 'In Transit' | 'Completed' | 'Rejected'
+  items: StockTransferItem[]
+  createdBy: string
 }
 
 export interface StockAdjustmentItem {
@@ -149,9 +158,31 @@ let recentMovements: StockMovement[] = [
   { id: 'MV-3', date: new Date(Date.now() - 1000 * 60 * 180).toISOString(), type: 'Adjustment', productId: '2', locationId: 'LOC-1', qty: -1, balanceAfter: 4, user: 'Warehouse Admin', referenceId: 'ADJ-0042' },
 ]
 
-let pendingTransfers: PendingTransfer[] = [
-  { id: 'TRF-0100', date: new Date().toISOString(), sourceId: 'LOC-1', destinationId: 'LOC-3', itemCount: 2, status: 'In Transit' },
-  { id: 'TRF-0101', date: new Date().toISOString(), sourceId: 'LOC-2', destinationId: 'LOC-1', itemCount: 1, status: 'Pending Approval' }
+let stockTransfers: StockTransfer[] = [
+  {
+    id: 'TRF-202608-001',
+    date: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    sourceId: 'LOC-1',
+    destinationId: 'LOC-3',
+    notes: 'Restock for weekend',
+    status: 'In Transit',
+    items: [
+      { id: 'TRFI-1', productId: '1', transferQty: 2, receivedQty: 0 }
+    ],
+    createdBy: 'Warehouse Admin'
+  },
+  {
+    id: 'TRF-202608-002',
+    date: new Date().toISOString(),
+    sourceId: 'LOC-2',
+    destinationId: 'LOC-1',
+    notes: 'Return damaged goods',
+    status: 'Pending Approval',
+    items: [
+      { id: 'TRFI-2', productId: '4', transferQty: 1, receivedQty: 0 }
+    ],
+    createdBy: 'Store Manager'
+  }
 ]
 
 let stockAdjustments: StockAdjustment[] = [
@@ -222,11 +253,141 @@ export const mockErpApi = {
     await delay()
     return JSON.parse(JSON.stringify(recentMovements))
   },
-  async getPendingTransfers(): Promise<PendingTransfer[]> {
+  async getStockTransfers(): Promise<StockTransfer[]> {
     await delay()
-    return JSON.parse(JSON.stringify(pendingTransfers))
+    return JSON.parse(JSON.stringify(stockTransfers))
   },
   
+  
+  // Stock Transfers
+  async createStockTransfer(transfer: Omit<StockTransfer, 'id' | 'date' | 'status'>): Promise<StockTransfer> {
+    await delay()
+    const newTransfer: StockTransfer = {
+      ...transfer,
+      id: `TRF-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+      date: new Date().toISOString(),
+      status: 'Draft'
+    }
+    stockTransfers.unshift(newTransfer)
+    return newTransfer
+  },
+  async submitStockTransfer(id: string): Promise<StockTransfer> {
+    await delay()
+    const trf = stockTransfers.find(t => t.id === id)
+    if (!trf) throw new Error('Transfer not found')
+    if (trf.status !== 'Draft') throw new Error('Only Draft transfers can be submitted')
+    trf.status = 'Pending Approval'
+    return trf
+  },
+  async approveStockTransfer(id: string): Promise<StockTransfer> {
+    await delay()
+    const trf = stockTransfers.find(t => t.id === id)
+    if (!trf) throw new Error('Transfer not found')
+    if (trf.status !== 'Pending Approval') throw new Error('Transfer must be Pending Approval')
+    trf.status = 'Approved'
+    return trf
+  },
+  async rejectStockTransfer(id: string): Promise<StockTransfer> {
+    await delay()
+    const trf = stockTransfers.find(t => t.id === id)
+    if (!trf) throw new Error('Transfer not found')
+    if (trf.status !== 'Pending Approval') throw new Error('Transfer must be Pending Approval')
+    trf.status = 'Rejected'
+    return trf
+  },
+  async dispatchStockTransfer(id: string): Promise<StockTransfer> {
+    await delay()
+    const trf = stockTransfers.find(t => t.id === id)
+    if (!trf) throw new Error('Transfer not found')
+    if (trf.status !== 'Approved') throw new Error('Transfer must be Approved to be dispatched')
+
+    // Validate available stock and reserve/deduct
+    trf.items.forEach(item => {
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === trf.sourceId)
+      if (!balance || balance.currentStock - balance.reservedStock < item.transferQty) {
+        throw new Error(`Insufficient available stock for product at source location`)
+      }
+    })
+
+    // Apply mutations: Source available decreases, moved to In-Transit bucket
+    trf.items.forEach(item => {
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === trf.sourceId)!
+      balance.currentStock -= item.transferQty
+
+      recentMovements.unshift({
+        id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        date: new Date().toISOString(),
+        type: 'Transfer Out',
+        productId: item.productId,
+        locationId: trf.sourceId,
+        qty: -item.transferQty,
+        balanceAfter: balance.currentStock,
+        user: 'System (Dispatch)',
+        referenceId: trf.id
+      })
+    })
+
+    trf.status = 'In Transit'
+    return trf
+  },
+  async receiveStockTransfer(id: string, receives: { itemId: string, qty: number }[]): Promise<StockTransfer> {
+    await delay()
+    const trf = stockTransfers.find(t => t.id === id)
+    if (!trf) throw new Error('Transfer not found')
+    if (trf.status !== 'In Transit') throw new Error('Transfer must be In Transit to be received')
+
+    receives.forEach(rcv => {
+      const item = trf.items.find(i => i.id === rcv.itemId)
+      if (!item) throw new Error('Transfer item not found')
+      if (item.receivedQty + rcv.qty > item.transferQty) {
+        throw new Error(`Cannot over-receive item`)
+      }
+    })
+
+    let allReceived = true
+    receives.forEach(rcv => {
+      const item = trf.items.find(i => i.id === rcv.itemId)!
+      item.receivedQty += rcv.qty
+
+      if (rcv.qty > 0) {
+        let destBalance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === trf.destinationId)
+        if (!destBalance) {
+          destBalance = {
+            id: `IB-${item.productId}-${trf.destinationId}`,
+            productId: item.productId,
+            locationId: trf.destinationId,
+            currentStock: 0,
+            reservedStock: 0
+          }
+          inventoryBalances.push(destBalance)
+        }
+        destBalance.currentStock += rcv.qty
+
+        recentMovements.unshift({
+          id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          date: new Date().toISOString(),
+          type: 'Transfer In',
+          productId: item.productId,
+          locationId: trf.destinationId,
+          qty: rcv.qty,
+          balanceAfter: destBalance.currentStock,
+          user: 'System (Receive)',
+          referenceId: trf.id
+        })
+      }
+    })
+
+    // Check overall completion
+    trf.items.forEach(item => {
+      if (item.receivedQty < item.transferQty) allReceived = false
+    })
+
+    if (allReceived) {
+      trf.status = 'Completed'
+    }
+
+    return trf
+  },
   // Stock Adjustments
   async getStockAdjustments(): Promise<StockAdjustment[]> {
     await delay()

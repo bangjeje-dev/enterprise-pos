@@ -43,6 +43,16 @@ const router = createRouter({
       path: '/inventory/adjustments/:id',
       name: 'inventory-adjustment-form',
       component: () => import('@/views/inventory/StockAdjustmentFormView.vue')
+    },
+    {
+      path: '/inventory/transfers',
+      name: 'inventory-transfers',
+      component: () => import('@/views/inventory/StockTransfersView.vue')
+    },
+    {
+      path: '/inventory/transfers/:id',
+      name: 'inventory-transfer-form',
+      component: () => import('@/views/inventory/StockTransferFormView.vue')
     }
   ]
 })

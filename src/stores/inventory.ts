@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useProductStore } from './product'
-import { mockErpApi, type Location, type InventoryBalance, type StockMovement, type PendingTransfer, type StockAdjustment, type StockAdjustmentItem } from '@/services/mockErpApi'
+import { mockErpApi, type Location, type InventoryBalance, type StockMovement, type StockTransfer, type StockTransferItem, type StockAdjustment, type StockAdjustmentItem } from '@/services/mockErpApi'
 
-export type { Location, InventoryBalance, StockMovement, PendingTransfer, StockAdjustment, StockAdjustmentItem }
+export type { Location, InventoryBalance, StockMovement, StockTransfer, StockTransferItem, StockAdjustment, StockAdjustmentItem }
 
 export const useInventoryStore = defineStore('inventory', () => {
   const productStore = useProductStore()
@@ -12,7 +12,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const locations = ref<Location[]>([])
   const inventoryBalances = ref<InventoryBalance[]>([])
   const recentMovements = ref<StockMovement[]>([])
-  const pendingTransfers = ref<PendingTransfer[]>([])
+  const stockTransfers = ref<StockTransfer[]>([])
   const stockAdjustments = ref<StockAdjustment[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -73,7 +73,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     return detailedBalances.value.filter(i => i.status === 'Overstock').length
   })
 
-  const pendingTransfersCount = computed(() => pendingTransfers.value.length)
+  const pendingTransfersCount = computed(() => stockTransfers.value.filter(t => t.status === 'Pending Approval').length)
 
   // Computed: Filtered List
   const filteredList = computed(() => {
@@ -123,13 +123,13 @@ export const useInventoryStore = defineStore('inventory', () => {
         mockErpApi.getLocations(),
         mockErpApi.getInventoryBalances(),
         mockErpApi.getRecentMovements(),
-        mockErpApi.getPendingTransfers(),
+        mockErpApi.getStockTransfers(),
         mockErpApi.getStockAdjustments()
       ])
       locations.value = locs
       inventoryBalances.value = balances
       recentMovements.value = movements
-      pendingTransfers.value = transfers
+      stockTransfers.value = transfers
       stockAdjustments.value = adjustments
     } catch (err: any) {
       error.value = err.message
@@ -209,11 +209,97 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  // Stock Transfer Actions
+  async function createTransfer(transfer: Omit<StockTransfer, 'id' | 'date' | 'status'>) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const created = await mockErpApi.createStockTransfer(transfer)
+      await fetchInventoryData()
+      return created
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function submitTransfer(id: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.submitStockTransfer(id)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function approveTransfer(id: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.approveStockTransfer(id)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function rejectTransfer(id: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.rejectStockTransfer(id)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function dispatchTransfer(id: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.dispatchStockTransfer(id)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function receiveTransfer(id: string, receives: { itemId: string, qty: number }[]) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.receiveStockTransfer(id, receives)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     locations,
     inventoryBalances,
     recentMovements,
-    pendingTransfers,
+    stockTransfers,
     stockAdjustments,
     isLoading,
     error,
@@ -240,6 +326,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     submitAdjustment,
     approveAdjustment,
     completeAdjustment,
-    rejectAdjustment
+    rejectAdjustment,
+    
+    createTransfer,
+    submitTransfer,
+    approveTransfer,
+    rejectTransfer,
+    dispatchTransfer,
+    receiveTransfer
   }
 })
