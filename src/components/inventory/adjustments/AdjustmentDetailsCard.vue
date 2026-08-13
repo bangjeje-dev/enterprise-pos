@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { storeToRefs } from 'pinia'
 
@@ -18,6 +19,10 @@ const emit = defineEmits<{
 
 const store = useInventoryStore()
 const { locations } = storeToRefs(store)
+
+const validLocations = computed(() => {
+  return locations.value.filter(loc => loc.id !== 'LOC-TRANSIT')
+})
 
 const reasons: Record<string, string[]> = {
   Increase: ['Found/Manual Correction', 'Initial Stock', 'Production'],
@@ -54,7 +59,7 @@ const updateField = (field: string, value: string) => {
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 disabled:opacity-50 disabled:bg-gray-100"
         >
           <option value="" disabled>Select a location</option>
-          <option v-for="loc in locations" :key="loc.id" :value="loc.id">
+          <option v-for="loc in validLocations" :key="loc.id" :value="loc.id">
             {{ loc.name }} ({{ loc.type }})
           </option>
         </select>

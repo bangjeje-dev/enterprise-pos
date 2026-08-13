@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useProductStore } from '@/stores/product'
 import { useInventoryStore } from '@/stores/inventory'
 import { Trash2, Plus } from '@lucide/vue'
@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: any[]): void
+  (e: 'update:invalid', invalid: boolean): void
 }>()
 
 const productStore = useProductStore()
@@ -35,6 +36,31 @@ const searchResults = computed(() => {
   }).slice(0, 5) // limit results
 })
 
+const getAvailableStock = (productId: string) => {
+  const balance = inventoryStore.inventoryBalances.find(b => b.productId === productId && b.locationId === props.locationId)
+  if (!balance) return 0
+  return balance.currentStock - balance.reservedStock
+}
+
+const isItemInvalid = (item: any) => {
+  if (props.type === 'Decrease') {
+    return item.adjustedQty > getAvailableStock(item.productId)
+  }
+  return false
+}
+
+const hasInvalidItems = computed(() => {
+  return props.modelValue.some(isItemInvalid)
+})
+
+watch(hasInvalidItems, (invalid) => {
+  emit('update:invalid', invalid)
+}, { immediate: true })
+
+const getFinalStock = (item: any) => {
+  return props.type === 'Increase' ? item.currentStock + item.adjustedQty : item.currentStock - item.adjustedQty
+}
+
 const addItem = (productId: string) => {
   // Find current stock for this location
   const balance = inventoryStore.inventoryBalances.find(b => b.productId === productId && b.locationId === props.locationId)
@@ -44,8 +70,7 @@ const addItem = (productId: string) => {
     id: `temp-${Date.now()}`,
     productId,
     currentStock,
-    adjustedQty: 1,
-    finalStock: props.type === 'Increase' ? currentStock + 1 : currentStock - 1
+    adjustedQty: 1
   }
   
   emit('update:modelValue', [...props.modelValue, newItem])
@@ -56,15 +81,12 @@ const updateQty = (index: number, qty: number) => {
   if (qty <= 0) qty = 1
   
   const items = [...props.modelValue]
-  const currentStock = items[index].currentStock
   
-  // Validation: If decrease, cannot exceed current stock
-  if (props.type === 'Decrease' && qty > currentStock) {
-    qty = currentStock
-  }
+  // Note: We no longer auto-cap the value based on current type here. 
+  // We let the user enter what they want and mark it invalid if it exceeds available stock on Decrease.
+  // This allows them to switch types without silent mutation.
   
   items[index].adjustedQty = qty
-  items[index].finalStock = props.type === 'Increase' ? currentStock + qty : currentStock - qty
   
   emit('update:modelValue', items)
 }
@@ -142,7 +164,7 @@ const getProductDetails = (id: string) => {
             </td>
           </tr>
           
-          <tr v-for="(item, index) in modelValue" :key="item.id" class="border-b hover:bg-gray-50">
+          <tr v-for="(item, index) in modelValue" :key="item.id" class="border-b hover:bg-gray-50" :class="{ 'bg-red-50': isItemInvalid(item) }">
             <td class="px-4 py-3">
               <div class="font-medium text-gray-900">{{ getProductDetails(item.productId)?.name }}</div>
               <div class="text-xs text-gray-500 font-mono">{{ getProductDetails(item.productId)?.sku }}</div>
@@ -153,24 +175,34 @@ const getProductDetails = (id: string) => {
             </td>
             
             <td class="px-4 py-3 text-center">
-              <div class="flex items-center justify-center space-x-2" v-if="!isReadOnly">
-                <span :class="type === 'Increase' ? 'text-green-600' : 'text-red-600'">{{ type === 'Increase' ? '+' : '-' }}</span>
-                <input 
-                  type="number" 
-                  :value="item.adjustedQty"
-                  @change="e => updateQty(index, parseInt((e.target as HTMLInputElement).value))"
-                  min="1"
-                  :max="type === 'Decrease' ? item.currentStock : undefined"
-                  class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-20 p-2 text-center" 
-                >
+              <div class="flex flex-col items-center justify-center" v-if="!isReadOnly">
+                <div class="flex items-center space-x-2">
+                  <span :class="type === 'Increase' ? 'text-green-600' : 'text-red-600'">{{ type === 'Increase' ? '+' : '-' }}</span>
+                  <input 
+                    type="number" 
+                    :value="item.adjustedQty"
+                    @change="e => updateQty(index, parseInt((e.target as HTMLInputElement).value))"
+                    min="1"
+                    :class="[
+                      'text-sm rounded-lg block w-20 p-2 text-center focus:ring-blue-500 focus:border-blue-500',
+                      isItemInvalid(item) ? 'bg-red-50 border-red-500 text-red-900' : 'bg-white border-gray-300 text-gray-900'
+                    ]"
+                  >
+                </div>
+                <div v-if="isItemInvalid(item)" class="text-xs text-red-600 mt-1 font-medium text-center">
+                  Max: {{ getAvailableStock(item.productId) }}
+                </div>
               </div>
-              <div v-else class="font-medium" :class="type === 'Increase' ? 'text-green-600' : 'text-red-600'">
-                {{ type === 'Increase' ? '+' : '-' }}{{ item.adjustedQty }}
+              <div v-else class="font-medium flex flex-col items-center">
+                <span :class="type === 'Increase' ? 'text-green-600' : 'text-red-600'">
+                  {{ type === 'Increase' ? '+' : '-' }}{{ item.adjustedQty }}
+                </span>
+                <span v-if="isItemInvalid(item)" class="text-xs text-red-600 mt-1 font-medium">Invalid</span>
               </div>
             </td>
             
-            <td class="px-4 py-3 text-right font-bold text-blue-600">
-              {{ item.finalStock }} {{ getProductDetails(item.productId)?.unit }}
+            <td class="px-4 py-3 text-right font-bold" :class="isItemInvalid(item) ? 'text-red-600' : 'text-blue-600'">
+              {{ getFinalStock(item) }} {{ getProductDetails(item.productId)?.unit }}
             </td>
             
             <td v-if="!isReadOnly" class="px-4 py-3 text-right">

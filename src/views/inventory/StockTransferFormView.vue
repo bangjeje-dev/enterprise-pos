@@ -128,6 +128,22 @@ const reject = async () => {
   }
 }
 
+const isCanceling = ref(false)
+
+const cancel = async () => {
+  if (isCanceling.value) return
+  isCanceling.value = true
+  try {
+    await store.rejectTransfer(transfer.value.id)
+    showToast('Transfer cancelled', 'The transfer has been cancelled.', 'success')
+    refreshLocalCopy()
+  } catch (err: any) {
+    showToast('Cancellation Failed', err.message || 'An error occurred during cancellation.', 'error')
+  } finally {
+    isCanceling.value = false
+  }
+}
+
 const isDispatching = ref(false)
 
 const dispatch = async () => {
@@ -145,6 +161,72 @@ const dispatch = async () => {
 }
 
 const isReceiving = ref(false)
+const isReturning = ref(false)
+const isShortClosing = ref(false)
+
+const shortCloseItems = async () => {
+  if (isShortClosing.value) return
+  
+  const shortCloses = transfer.value.items.map((item: any) => ({
+    itemId: item.id,
+    qty: Number(item.draftShortCloseQty || 0),
+    reason: item.draftShortCloseReason || ''
+  })).filter((r: any) => r.qty > 0)
+
+  if (shortCloses.length === 0) {
+    showToast('Validation Error', 'Please enter at least one quantity to short close.', 'error')
+    return
+  }
+
+  const missingReason = shortCloses.some((r: any) => !r.reason.trim())
+  if (missingReason) {
+    showToast('Validation Error', 'A reason is required for short closed items.', 'error')
+    return
+  }
+
+  isShortClosing.value = true
+  try {
+    await store.shortCloseTransfer(transfer.value.id, shortCloses)
+    showToast('Items short closed', 'Transfer short close processed.', 'success')
+    refreshLocalCopy()
+  } catch (err: any) {
+    showToast('Short Close Failed', err.message || 'An error occurred during short close.', 'error')
+  } finally {
+    isShortClosing.value = false
+  }
+}
+
+const returnItems = async () => {
+  if (isReturning.value) return
+  
+  const returns = transfer.value.items.map((item: any) => ({
+    itemId: item.id,
+    qty: Number(item.draftReturnQty || 0),
+    reason: item.draftReturnReason || ''
+  })).filter((r: any) => r.qty > 0)
+
+  if (returns.length === 0) {
+    showToast('Validation Error', 'Please enter at least one quantity to return.', 'error')
+    return
+  }
+
+  const missingReason = returns.some((r: any) => !r.reason.trim())
+  if (missingReason) {
+    showToast('Validation Error', 'A reason is required for returned items.', 'error')
+    return
+  }
+
+  isReturning.value = true
+  try {
+    await store.returnTransfer(transfer.value.id, returns)
+    showToast('Items returned', 'Transfer return processed.', 'success')
+    refreshLocalCopy()
+  } catch (err: any) {
+    showToast('Return Failed', err.message || 'An error occurred during return.', 'error')
+  } finally {
+    isReturning.value = false
+  }
+}
 
 const receive = async () => {
   if (isReceiving.value) return
@@ -189,7 +271,7 @@ const receive = async () => {
           </h1>
         </div>
       </div>
-      <div class="mt-4 sm:mt-0 flex space-x-3">
+      <div class="mt-4 sm:mt-0 flex flex-wrap gap-3 justify-end">
         <!-- Actions based on state -->
         <button v-if="isNew || transfer.status === 'Draft'" @click="submitForApproval" :disabled="isSubmitting" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
@@ -209,13 +291,31 @@ const receive = async () => {
           </button>
         </template>
 
-        <button v-if="canDispatch" @click="dispatch" :disabled="isDispatching" class="inline-flex items-center text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
-          <Loader2 v-if="isDispatching" class="w-4 h-4 mr-2 animate-spin" />
-          <Truck v-else class="w-4 h-4 mr-2" />
-          {{ isDispatching ? 'Dispatching...' : 'Dispatch Transfer' }}
+        <template v-if="canDispatch">
+          <button @click="cancel" :disabled="isCanceling || isDispatching" class="inline-flex items-center text-red-600 bg-white border border-red-200 hover:bg-red-50 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            <XCircle class="w-4 h-4 mr-2" />
+            Cancel
+          </button>
+          <button @click="dispatch" :disabled="isDispatching || isCanceling" class="inline-flex items-center text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            <Loader2 v-if="isDispatching" class="w-4 h-4 mr-2 animate-spin" />
+            <Truck v-else class="w-4 h-4 mr-2" />
+            {{ isDispatching ? 'Dispatching...' : 'Dispatch Transfer' }}
+          </button>
+        </template>
+
+        <button v-if="canReceive" @click="shortCloseItems" :disabled="isShortClosing || isReturning || isReceiving" class="inline-flex items-center text-red-700 bg-white border border-red-300 hover:bg-red-50 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Loader2 v-if="isShortClosing" class="w-4 h-4 mr-2 animate-spin" />
+          <AlertCircle v-else class="w-4 h-4 mr-2" />
+          {{ isShortClosing ? 'Closing...' : 'Short Close' }}
         </button>
 
-        <button v-if="canReceive" @click="receive" :disabled="isReceiving" class="inline-flex items-center text-white bg-teal-600 hover:bg-teal-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button v-if="canReceive" @click="returnItems" :disabled="isReturning || isReceiving || isShortClosing" class="inline-flex items-center text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Loader2 v-if="isReturning" class="w-4 h-4 mr-2 animate-spin" />
+          <ArrowLeft v-else class="w-4 h-4 mr-2" />
+          {{ isReturning ? 'Returning...' : 'Return to Source' }}
+        </button>
+
+        <button v-if="canReceive" @click="receive" :disabled="isReceiving || isReturning || isShortClosing" class="inline-flex items-center text-white bg-teal-600 hover:bg-teal-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <Loader2 v-if="isReceiving" class="w-4 h-4 mr-2 animate-spin" />
           <PackageCheck v-else class="w-4 h-4 mr-2" />
           {{ isReceiving ? 'Receiving...' : 'Receive Selected' }}

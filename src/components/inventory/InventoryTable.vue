@@ -123,7 +123,7 @@ const getStatusBadgeClass = (status: string) => {
             </td>
             
             <td class="px-4 py-3 text-right text-sm">
-              <a href="#" class="font-medium text-blue-600 hover:underline">Adjust</a>
+              <router-link :to="{ path: '/inventory/adjustments/new', query: { locationId: item.locationId, productId: item.productId } }" class="font-medium text-blue-600 hover:underline">Adjust</router-link>
             </td>
           </tr>
         </tbody>

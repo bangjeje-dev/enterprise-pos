@@ -73,7 +73,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     return detailedBalances.value.filter(i => i.status === 'Overstock').length
   })
 
-  const pendingTransfersCount = computed(() => stockTransfers.value.filter(t => t.status === 'Pending Approval').length)
+  const pendingTransfersList = computed(() => {
+    return stockTransfers.value.filter(t => t.status === 'Pending Approval' || t.status === 'In Transit')
+  })
+
+  const pendingTransfersCount = computed(() => pendingTransfersList.value.length)
 
   // Computed: Filtered List
   const filteredList = computed(() => {
@@ -295,6 +299,34 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  async function returnTransfer(id: string, returns: { itemId: string, qty: number, reason: string }[]) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.returnStockTransfer(id, returns)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function shortCloseTransfer(id: string, shortCloses: { itemId: string, qty: number, reason: string }[]) {
+    isLoading.value = true
+    error.value = null
+    try {
+      await mockErpApi.shortCloseStockTransfer(id, shortCloses)
+      await fetchInventoryData()
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     locations,
     inventoryBalances,
@@ -317,6 +349,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     lowStockCount,
     outOfStockCount,
     overstockCount,
+    pendingTransfersList,
     pendingTransfersCount,
     
     clearFilters,
@@ -333,6 +366,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     approveTransfer,
     rejectTransfer,
     dispatchTransfer,
-    receiveTransfer
+    receiveTransfer,
+    returnTransfer,
+    shortCloseTransfer
   }
 })

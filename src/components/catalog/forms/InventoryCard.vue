@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Product } from '@/stores/product'
+import { useInventoryStore } from '@/stores/inventory'
 
 const props = defineProps<{
   modelValue: Partial<Product>
@@ -12,6 +14,17 @@ const emit = defineEmits<{
 const updateField = (field: keyof Product, value: any) => {
   emit('update:modelValue', { ...props.modelValue, [field]: value })
 }
+
+const inventoryStore = useInventoryStore()
+
+const actualCurrentStock = computed(() => {
+  if (!props.modelValue.id) return 0
+  
+  // Aggregate from inventory balances, excluding LOC-TRANSIT
+  return inventoryStore.inventoryBalances
+    .filter(b => b.productId === props.modelValue.id && b.locationId !== 'LOC-TRANSIT')
+    .reduce((sum, b) => sum + b.currentStock, 0)
+})
 </script>
 
 <template>
@@ -51,10 +64,11 @@ const updateField = (field: keyof Product, value: any) => {
           <label class="block mb-2 text-sm font-medium text-gray-900">Current Stock</label>
           <input 
             type="number" 
-            :value="modelValue.currentStock"
+            :value="actualCurrentStock"
             disabled
             class="bg-gray-100 border border-gray-200 text-gray-500 text-sm rounded-lg block w-full p-2.5 cursor-not-allowed font-semibold" 
           >
+          <p class="text-xs text-gray-500 mt-1">Aggregated across network</p>
         </div>
 
         <div>

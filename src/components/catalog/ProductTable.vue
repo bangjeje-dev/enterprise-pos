@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useProductStore } from '@/stores/product'
 import { storeToRefs } from 'pinia'
 import { MoreHorizontal, Edit, Trash2, Box, Package, Server, AlertCircle, Archive, CheckCircle, XCircle } from '@lucide/vue'
+import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
   visibleColumns: string[]
@@ -10,6 +11,7 @@ const props = defineProps<{
 
 const store = useProductStore()
 const { filteredProducts } = storeToRefs(store)
+const { showToast } = useToast()
 
 const selectedIds = ref<string[]>([])
 
@@ -49,20 +51,44 @@ const getStatusClass = (status: string) => {
   }
 }
 
-const handleBulkAction = (action: string) => {
+const handleBulkAction = async (action: string) => {
   if (selectedIds.value.length === 0) return
+  
+  store.error = null
   
   if (action === 'delete') {
     if (confirm(`Are you sure you want to delete ${selectedIds.value.length} products?`)) {
-      store.bulkDelete(selectedIds.value)
-      selectedIds.value = []
+      await store.bulkDelete(selectedIds.value)
+      if (store.error) {
+        showToast('Delete Failed', store.error, 'error')
+      } else {
+        showToast('Success', 'Products deleted successfully', 'success')
+        selectedIds.value = []
+      }
     }
   } else if (action === 'activate') {
-    store.bulkUpdateStatus(selectedIds.value, 'Active')
+    await store.bulkUpdateStatus(selectedIds.value, 'Active')
+    if (store.error) showToast('Update Failed', store.error, 'error')
+    else showToast('Success', 'Products activated', 'success')
   } else if (action === 'deactivate') {
-    store.bulkUpdateStatus(selectedIds.value, 'Inactive')
+    await store.bulkUpdateStatus(selectedIds.value, 'Inactive')
+    if (store.error) showToast('Update Failed', store.error, 'error')
+    else showToast('Success', 'Products deactivated', 'success')
   } else if (action === 'archive') {
-    store.bulkUpdateStatus(selectedIds.value, 'Archived')
+    await store.bulkUpdateStatus(selectedIds.value, 'Archived')
+    if (store.error) showToast('Update Failed', store.error, 'error')
+    else showToast('Success', 'Products archived', 'success')
+  }
+}
+const handleSingleDelete = async (product: any) => {
+  if (confirm(`Are you sure you want to delete ${product.name}?`)) {
+    store.error = null
+    await store.deleteProduct(product.id)
+    if (store.error) {
+      showToast('Delete Failed', store.error, 'error')
+    } else {
+      showToast('Success', 'Product deleted successfully', 'success')
+    }
   }
 }
 </script>
@@ -184,8 +210,8 @@ const handleBulkAction = (action: string) => {
               <router-link :to="`/catalog/products/${product.id}`" class="inline-flex p-2 text-sm font-medium text-center text-gray-500 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-50">
                 <Edit class="w-4 h-4 text-blue-600" />
               </router-link>
-              <button @click="handleBulkAction('delete')" class="inline-flex p-2 text-sm font-medium text-center text-gray-500 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-50 ml-1">
-                <MoreHorizontal class="w-4 h-4 text-gray-400" />
+              <button @click="handleSingleDelete(product)" class="inline-flex p-2 text-sm font-medium text-center text-gray-500 bg-white rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-50 ml-1">
+                <Trash2 class="w-4 h-4 text-red-500" />
               </button>
             </td>
           </tr>

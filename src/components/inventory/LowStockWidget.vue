@@ -16,8 +16,8 @@ const lowStockItems = computed(() => {
 <template>
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm h-full flex flex-col">
     <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center">
-      <h3 class="font-semibold text-gray-900">Critical Low Stock</h3>
-      <a href="#" class="text-sm font-medium text-blue-600 hover:underline">View All</a>
+      <h3 class="font-semibold text-gray-900">Critical Stock Alerts</h3>
+      <router-link to="/inventory" class="text-sm font-medium text-blue-600 hover:underline">View All</router-link>
     </div>
     
     <div class="p-0 flex-1 overflow-auto">

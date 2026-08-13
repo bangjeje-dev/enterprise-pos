@@ -38,6 +38,28 @@ onMounted(() => {
     } else {
       router.push('/inventory/adjustments')
     }
+  } else {
+    // Contextual Pre-population from Inventory List
+    const locId = route.query.locationId as string
+    const prodId = route.query.productId as string
+    
+    // Only pre-populate if BOTH are provided, and do NOT allow LOC-TRANSIT
+    if (locId && prodId && locId !== 'LOC-TRANSIT') {
+      // Ensure the initialization runs exactly once
+      if (adjustment.value.items.length === 0) {
+        adjustment.value.locationId = locId
+        
+        const balance = store.inventoryBalances.find(b => b.productId === prodId && b.locationId === locId)
+        const currentStock = balance ? balance.currentStock : 0
+        
+        adjustment.value.items.push({
+          id: `temp-${Date.now()}`,
+          productId: prodId,
+          currentStock: currentStock,
+          adjustedQty: 1
+        })
+      }
+    }
   }
 })
 
@@ -45,6 +67,7 @@ const isReadOnly = computed(() => !isNew.value && adjustment.value.status !== 'D
 const canApprove = computed(() => !isNew.value && adjustment.value.status === 'Pending Approval')
 const canComplete = computed(() => !isNew.value && adjustment.value.status === 'Approved')
 
+const hasInvalidItems = ref(false)
 const isSubmitting = ref(false)
 const { showToast } = useToast()
 
@@ -53,6 +76,11 @@ const submitForApproval = async () => {
   
   if (!adjustment.value.locationId || !adjustment.value.type || !adjustment.value.reason || adjustment.value.items.length === 0) {
     showToast('Validation Error', 'Please complete all required fields and add at least one item.', 'error')
+    return
+  }
+
+  if (hasInvalidItems.value) {
+    showToast('Validation Error', 'Please correct the invalid item quantities before submitting.', 'error')
     return
   }
   
@@ -113,6 +141,12 @@ const isCompleting = ref(false)
 
 const complete = async () => {
   if (isCompleting.value) return
+  
+  if (hasInvalidItems.value) {
+    showToast('Validation Error', 'Cannot complete adjustment with invalid quantities.', 'error')
+    return
+  }
+
   isCompleting.value = true
   try {
     await store.completeAdjustment(adjustment.value.id)
@@ -143,7 +177,7 @@ const complete = async () => {
       </div>
       <div class="mt-4 sm:mt-0 flex space-x-3">
         <!-- Actions based on state -->
-        <button v-if="isNew || adjustment.status === 'Draft'" @click="submitForApproval" :disabled="isSubmitting" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button v-if="isNew || adjustment.status === 'Draft'" @click="submitForApproval" :disabled="isSubmitting || hasInvalidItems" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
           <Save v-else class="w-4 h-4 mr-2" />
           {{ isSubmitting ? 'Submitting...' : 'Submit for Approval' }}
@@ -155,7 +189,7 @@ const complete = async () => {
           {{ isApproving ? 'Approving...' : 'Approve Request' }}
         </button>
 
-        <button v-if="canComplete" @click="complete" :disabled="isCompleting" class="inline-flex items-center text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button v-if="canComplete" @click="complete" :disabled="isCompleting || hasInvalidItems" class="inline-flex items-center text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <Loader2 v-if="isCompleting" class="w-4 h-4 mr-2 animate-spin" />
           <CheckCircle v-else class="w-4 h-4 mr-2" />
           {{ isCompleting ? 'Completing...' : 'Complete & Mutate Stock' }}
@@ -178,6 +212,7 @@ const complete = async () => {
           :locationId="adjustment.locationId"
           :type="adjustment.type"
           :isReadOnly="isReadOnly"
+          @update:invalid="hasInvalidItems = $event"
         />
       </div>
       

@@ -81,11 +81,12 @@ const navigateToTransfer = (id: string) => {
               <th scope="col" class="px-6 py-4">Items</th>
               <th scope="col" class="px-6 py-4">Status</th>
               <th scope="col" class="px-6 py-4">Created By</th>
+              <th scope="col" class="px-6 py-4 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="transfers.length === 0">
-              <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+              <td colspan="6" class="px-6 py-8 text-center text-gray-500">
                 No stock transfers found. Create a new one to get started.
               </td>
             </tr>
@@ -112,6 +113,11 @@ const navigateToTransfer = (id: string) => {
               </td>
               <td class="px-6 py-4">
                 {{ transfer.createdBy }}
+              </td>
+              <td class="px-6 py-4 text-right">
+                <button @click.stop="navigateToTransfer(transfer.id)" class="font-medium text-blue-600 hover:text-blue-800">
+                  View
+                </button>
               </td>
             </tr>
           </tbody>

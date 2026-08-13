@@ -1,9 +1,30 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Product } from '@/stores/product'
+import { useInventoryStore } from '@/stores/inventory'
 
 const props = defineProps<{
   modelValue: Partial<Product>
 }>()
+
+const inventoryStore = useInventoryStore()
+
+const branchBalances = computed(() => {
+  if (!props.modelValue.id) return []
+  
+  // Exclude LOC-TRANSIT, include only active balances for this product
+  return inventoryStore.detailedBalances
+    .filter(b => b.productId === props.modelValue.id && b.locationId !== 'LOC-TRANSIT')
+})
+
+const totals = computed(() => {
+  return branchBalances.value.reduce((acc, curr) => {
+    acc.current += curr.currentStock
+    acc.reserved += curr.reservedStock
+    acc.available += curr.availableStock
+    return acc
+  }, { current: 0, reserved: 0, available: 0 })
+})
 </script>
 
 <template>
@@ -27,31 +48,24 @@ const props = defineProps<{
             </tr>
           </thead>
           <tbody>
-            <tr class="border-b">
-              <td class="px-4 py-3 font-medium text-gray-900">HQ Warehouse (JKT)</td>
-              <td class="px-4 py-3 text-right">1,250</td>
-              <td class="px-4 py-3 text-right text-red-600">150</td>
-              <td class="px-4 py-3 text-right text-blue-600 font-bold">1,100</td>
+            <tr v-for="balance in branchBalances" :key="balance.id" class="border-b">
+              <td class="px-4 py-3 font-medium text-gray-900">{{ balance.location?.name || 'Unknown Location' }}</td>
+              <td class="px-4 py-3 text-right">{{ balance.currentStock.toLocaleString() }}</td>
+              <td class="px-4 py-3 text-right" :class="{'text-red-600': balance.reservedStock > 0}">{{ balance.reservedStock.toLocaleString() }}</td>
+              <td class="px-4 py-3 text-right text-blue-600 font-bold">{{ balance.availableStock.toLocaleString() }}</td>
             </tr>
-            <tr class="border-b">
-              <td class="px-4 py-3 font-medium text-gray-900">Store - Grand Indonesia</td>
-              <td class="px-4 py-3 text-right">45</td>
-              <td class="px-4 py-3 text-right text-red-600">5</td>
-              <td class="px-4 py-3 text-right text-blue-600 font-bold">40</td>
-            </tr>
-            <tr>
-              <td class="px-4 py-3 font-medium text-gray-900">Store - PIK Avenue</td>
-              <td class="px-4 py-3 text-right">12</td>
-              <td class="px-4 py-3 text-right text-red-600">0</td>
-              <td class="px-4 py-3 text-right text-blue-600 font-bold">12</td>
+            <tr v-if="branchBalances.length === 0">
+              <td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                No inventory recorded for this product yet.
+              </td>
             </tr>
           </tbody>
-          <tfoot class="bg-gray-50 border-t border-gray-200 font-semibold text-gray-900">
+          <tfoot v-if="branchBalances.length > 0" class="bg-gray-50 border-t border-gray-200 font-semibold text-gray-900">
             <tr>
               <td class="px-4 py-3">Total Network</td>
-              <td class="px-4 py-3 text-right">1,307</td>
-              <td class="px-4 py-3 text-right text-red-600">155</td>
-              <td class="px-4 py-3 text-right text-blue-600 font-bold">1,152</td>
+              <td class="px-4 py-3 text-right">{{ totals.current.toLocaleString() }}</td>
+              <td class="px-4 py-3 text-right" :class="{'text-red-600': totals.reserved > 0}">{{ totals.reserved.toLocaleString() }}</td>
+              <td class="px-4 py-3 text-right text-blue-600 font-bold">{{ totals.available.toLocaleString() }}</td>
             </tr>
           </tfoot>
         </table>

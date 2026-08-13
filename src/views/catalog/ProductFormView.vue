@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore, type Product } from '@/stores/product'
 import { ArrowLeft, Save, X } from '@lucide/vue'
+import { useToast } from '@/composables/useToast'
 
 import GeneralInfoCard from '@/components/catalog/forms/GeneralInfoCard.vue'
 import IdentificationCard from '@/components/catalog/forms/IdentificationCard.vue'
@@ -19,6 +20,7 @@ import AuditCard from '@/components/catalog/forms/AuditCard.vue'
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const { showToast } = useToast()
 
 const isEditing = ref(false)
 const isLoading = ref(true)
@@ -74,22 +76,32 @@ onMounted(() => {
   isLoading.value = false
 })
 
-const handleSave = () => {
+const handleSave = async () => {
   if (!formData.value.name || !formData.value.category || !formData.value.sku || !formData.value.unit) {
-    alert('Please fill in all required fields.')
+    showToast('Validation Error', 'Please fill in all required fields.', 'error')
     return
   }
 
+  // Clear previous error
+  store.error = null
+
   if (isEditing.value) {
-    store.updateProduct(formData.value.id!, formData.value)
+    await store.updateProduct(formData.value.id!, formData.value)
   } else {
-    store.addProduct({
+    await store.addProduct({
       ...formData.value,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     } as Product)
   }
+  
+  if (store.error) {
+    showToast('Failed to save product', store.error, 'error')
+    return
+  }
+  
+  showToast('Success', 'Product saved successfully.', 'success')
   router.push('/catalog/products')
 }
 

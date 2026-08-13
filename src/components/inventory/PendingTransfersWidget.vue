@@ -5,11 +5,7 @@ import { computed } from 'vue'
 import { Clock, Truck, ArrowRight } from '@lucide/vue'
 
 const store = useInventoryStore()
-const { stockTransfers } = storeToRefs(store)
-
-const pendingTransfers = computed(() => {
-  return stockTransfers.value.filter(t => t.status === 'Pending Approval' || t.status === 'In Transit')
-})
+const { pendingTransfersList } = storeToRefs(store)
 
 const formatDate = (dateStr: string) => {
   const d = new Date(dateStr)
@@ -21,16 +17,16 @@ const formatDate = (dateStr: string) => {
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm h-full flex flex-col">
     <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center">
       <h3 class="font-semibold text-gray-900">Pending Transfers</h3>
-      <a href="#" class="text-sm font-medium text-blue-600 hover:underline">View All</a>
+      <router-link to="/inventory/transfers" class="text-sm font-medium text-blue-600 hover:underline">View All</router-link>
     </div>
     
     <div class="p-0 flex-1 overflow-auto">
-      <div v-if="pendingTransfers.length === 0" class="p-5 text-center text-gray-500 text-sm">
+      <div v-if="pendingTransfersList.length === 0" class="p-5 text-center text-gray-500 text-sm">
         No pending transfers.
       </div>
       
       <ul v-else class="divide-y divide-gray-200">
-        <li v-for="transfer in pendingTransfers" :key="transfer.id" class="p-4 hover:bg-gray-50">
+        <li v-for="transfer in pendingTransfersList" :key="transfer.id" class="p-4 hover:bg-gray-50">
           <div class="flex items-start space-x-3">
             <div class="mt-1">
               <Truck v-if="transfer.status === 'In Transit'" class="w-5 h-5 text-blue-500" />
