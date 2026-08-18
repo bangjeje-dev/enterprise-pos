@@ -6,53 +6,84 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: HomeView
+      component: () => import('@/layouts/MainLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'home',
+          component: HomeView
+        },
+        {
+          path: 'catalog/products',
+          name: 'products',
+          component: () => import('@/views/catalog/ProductListView.vue')
+        },
+        {
+          path: 'catalog/products/new',
+          name: 'product-new',
+          component: () => import('@/views/catalog/ProductFormView.vue')
+        },
+        {
+          path: 'catalog/products/:id',
+          name: 'product-edit',
+          component: () => import('@/views/catalog/ProductFormView.vue')
+        },
+        {
+          path: 'inventory/dashboard',
+          name: 'inventory-dashboard',
+          component: () => import('@/views/inventory/InventoryDashboardView.vue')
+        },
+        {
+          path: 'inventory/list',
+          name: 'inventory-list',
+          component: () => import('@/views/inventory/InventoryListView.vue')
+        },
+        {
+          path: 'inventory/adjustments',
+          name: 'inventory-adjustments',
+          component: () => import('@/views/inventory/StockAdjustmentsView.vue')
+        },
+        {
+          path: 'inventory/adjustments/:id',
+          name: 'inventory-adjustment-form',
+          component: () => import('@/views/inventory/StockAdjustmentFormView.vue')
+        },
+        {
+          path: 'inventory/transfers',
+          name: 'inventory-transfers',
+          component: () => import('@/views/inventory/StockTransfersView.vue')
+        },
+        {
+          path: 'inventory/transfers/:id',
+          name: 'inventory-transfer-form',
+          component: () => import('@/views/inventory/StockTransferFormView.vue')
+        },
+        {
+          path: 'sales',
+          name: 'sales-list',
+          component: () => import('@/views/sales/SalesListView.vue')
+        },
+        {
+          path: 'sales/:id',
+          name: 'sales-detail',
+          component: () => import('@/views/sales/SalesDetailView.vue')
+        }
+      ]
     },
     {
-      path: '/catalog/products',
-      name: 'products',
-      component: () => import('@/views/catalog/ProductListView.vue')
+      path: '/pos',
+      component: () => import('@/layouts/PosLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'pos',
+          component: () => import('@/views/pos/PosView.vue')
+        }
+      ]
     },
     {
-      path: '/catalog/products/new',
-      name: 'product-new',
-      component: () => import('@/views/catalog/ProductFormView.vue')
-    },
-    {
-      path: '/catalog/products/:id',
-      name: 'product-edit',
-      component: () => import('@/views/catalog/ProductFormView.vue')
-    },
-    {
-      path: '/inventory/dashboard',
-      name: 'inventory-dashboard',
-      component: () => import('@/views/inventory/InventoryDashboardView.vue')
-    },
-    {
-      path: '/inventory/list',
-      name: 'inventory-list',
-      component: () => import('@/views/inventory/InventoryListView.vue')
-    },
-    {
-      path: '/inventory/adjustments',
-      name: 'inventory-adjustments',
-      component: () => import('@/views/inventory/StockAdjustmentsView.vue')
-    },
-    {
-      path: '/inventory/adjustments/:id',
-      name: 'inventory-adjustment-form',
-      component: () => import('@/views/inventory/StockAdjustmentFormView.vue')
-    },
-    {
-      path: '/inventory/transfers',
-      name: 'inventory-transfers',
-      component: () => import('@/views/inventory/StockTransfersView.vue')
-    },
-    {
-      path: '/inventory/transfers/:id',
-      name: 'inventory-transfer-form',
-      component: () => import('@/views/inventory/StockTransferFormView.vue')
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ]
 })

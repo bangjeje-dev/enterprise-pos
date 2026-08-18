@@ -26,6 +26,11 @@ const navigation = [
     icon: ShoppingCart
   },
   {
+    name: 'Sales History',
+    path: '/sales',
+    icon: FileText
+  },
+  {
     name: 'Catalog',
     icon: Tags,
     children: [

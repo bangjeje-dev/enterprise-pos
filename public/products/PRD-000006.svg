@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Clean white background with very subtle border and slight shadow effect -->
+  <rect width="100" height="100" fill="#ffffff" />
+  <!-- Drop shadow definition -->
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.05"/>
+    </filter>
+  </defs>
+  <!-- Main shape centered and scaled up -->
+  <g transform="translate(15, 15) scale(2.9)" filter="url(#shadow)">
+    <path d="M20 21H4a2 2 0 01-2-2V10a2 2 0 011-1.73l9-5a2 2 0 012 0l9 5A2 2 0 0122 10v9a2 2 0 01-2 2z" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h20M12 3v10" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

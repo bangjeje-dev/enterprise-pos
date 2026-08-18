@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import MainLayout from '@/layouts/MainLayout.vue'
 import { useProductStore } from '@/stores/product'
 import { useInventoryStore } from '@/stores/inventory'
 import { onMounted } from 'vue'
+import { RouterView } from 'vue-router'
 
 const productStore = useProductStore()
 const inventoryStore = useInventoryStore()
@@ -14,5 +14,5 @@ onMounted(() => {
 </script>
 
 <template>
-  <MainLayout />
+  <RouterView />
 </template>

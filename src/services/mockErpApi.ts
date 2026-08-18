@@ -30,6 +30,7 @@ export interface Product {
   reorderLevel?: number
   unit: string
   status: ProductStatus
+  imageUrl?: string
   images?: string[]
   variants?: any[]
   branchInventory?: any[]
@@ -57,7 +58,7 @@ export interface InventoryBalance {
 export interface StockMovement {
   id: string
   date: string
-  type: 'Sale' | 'Adjustment' | 'Transfer In' | 'Transfer Out' | 'Receipt' | 'Transfer Return'
+  type: 'Sale' | 'Adjustment' | 'Transfer In' | 'Transfer Out' | 'Receipt' | 'Transfer Return' | 'Void'
   productId: string
   locationId: string
   qty: number
@@ -107,30 +108,190 @@ export interface StockAdjustment {
   createdBy: string
 }
 
+// Types from Sales domain
+export interface SalesTransactionItem {
+  productId: string
+  productNameSnapshot: string
+  skuSnapshot: string
+  barcodeSnapshot?: string
+  unit: string
+  quantity: number
+  unitPrice: number
+  discount: number
+  subtotal: number
+}
+
+export interface SalesTransaction {
+  id: string
+  transactionNumber: string
+  locationId: string
+  status: 'Draft' | 'Completed' | 'Voided'
+  items: SalesTransactionItem[]
+  subtotal: number
+  discount: number
+  tax: number
+  grandTotal: number
+  paymentStatus: 'Unpaid' | 'Paid' | 'Refunded'
+  paymentMethod: 'Cash' | 'Card' | 'QRIS' | ''
+  amountReceived?: number
+  changeAmount?: number
+  createdAt: string
+  completedAt?: string
+  voidedAt?: string
+  authorizedBy?: string
+  voidReason?: string
+}
+
+export interface AuthorizationContext {
+  authorizedBy: string
+  authorizedRole: string
+  reason: string
+}
+
 // Mock Database State
 let products: Product[] = [
   {
+    id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 8000, costPrice: 4800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 44, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '6', name: 'Chocolate Cake Slice', sku: 'PRD-000006', imageUrl: '/products/PRD-000006.svg', type: 'Inventory Item', category: 'Bakery',
+    basePrice: 35000, costPrice: 21000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 20, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '7', name: 'Potato Chips (75g)', sku: 'PRD-000007', imageUrl: '/products/PRD-000007.svg', type: 'Inventory Item', category: 'Snacks',
+    basePrice: 15000, costPrice: 9000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 57, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '8', name: 'Orange Juice (300ml)', sku: 'PRD-000008', imageUrl: '/products/PRD-000008.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 26, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '9', name: 'Brown Sugar (1kg)', sku: 'PRD-000009', imageUrl: '/products/PRD-000009.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 22000, costPrice: 13200, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 52, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '10', name: 'Spaghetti (500g)', sku: 'PRD-000010', imageUrl: '/products/PRD-000010.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 18000, costPrice: 10800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 11, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '11', name: 'Cooking Oil (1L)', sku: 'PRD-000011', imageUrl: '/products/PRD-000011.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 20000, costPrice: 12000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 18, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '12', name: 'Tuna Can (185g)', sku: 'PRD-000012', imageUrl: '/products/PRD-000012.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 24000, costPrice: 14400, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 25, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '13', name: 'Green Tea (Cup)', sku: 'PRD-000013', imageUrl: '/products/PRD-000013.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 20000, costPrice: 12000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 31, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '14', name: 'Espresso Beans (500g)', sku: 'PRD-000014', imageUrl: '/products/PRD-000014.svg', type: 'Inventory Item', category: 'Coffee',
+    basePrice: 90000, costPrice: 54000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 11, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '15', name: 'Butter Croissant', sku: 'PRD-000015', imageUrl: '/products/PRD-000015.svg', type: 'Inventory Item', category: 'Bakery',
+    basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 23, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '16', name: 'Club Sandwich', sku: 'PRD-000016', imageUrl: '/products/PRD-000016.svg', type: 'Inventory Item', category: 'Snacks',
+    basePrice: 45000, costPrice: 27000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 37, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '17', name: 'Strawberry Yogurt', sku: 'PRD-000017', imageUrl: '/products/PRD-000017.svg', type: 'Inventory Item', category: 'Dairy',
+    basePrice: 18000, costPrice: 10800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 54, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '18', name: 'Apple Juice (300ml)', sku: 'PRD-000018', imageUrl: '/products/PRD-000018.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 30, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '19', name: 'Instant Noodles', sku: 'PRD-000019', imageUrl: '/products/PRD-000019.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 5000, costPrice: 3000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 35, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '20', name: 'White Sugar (1kg)', sku: 'PRD-000020', imageUrl: '/products/PRD-000020.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 15000, costPrice: 9000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 38, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '21', name: 'Chocolate Bar (100g)', sku: 'PRD-000021', imageUrl: '/products/PRD-000021.svg', type: 'Inventory Item', category: 'Snacks',
+    basePrice: 20000, costPrice: 12000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 29, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '22', name: 'Sparkling Water', sku: 'PRD-000022', imageUrl: '/products/PRD-000022.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 12000, costPrice: 7200, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 45, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '23', name: 'Matcha Latte', sku: 'PRD-000023', imageUrl: '/products/PRD-000023.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 32000, costPrice: 19200, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 49, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '24', name: 'Chicken Sandwich', sku: 'PRD-000024', imageUrl: '/products/PRD-000024.svg', type: 'Inventory Item', category: 'Snacks',
+    basePrice: 40000, costPrice: 24000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 42, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
     id: '1', name: 'Premium Coffee Blend (1kg)', description: 'House blend espresso roast',
-    sku: 'PRD-000001', barcode: '8991234567890', type: 'Inventory Item', category: 'Beverages',
+    sku: 'PRD-000001', imageUrl: '/products/PRD-000001.svg', barcode: '8991234567890', type: 'Inventory Item', category: 'Beverages',
     brand: 'Kopi Kenangan', basePrice: 125000, costPrice: 85000, taxClass: 'Standard 11%',
     erpManaged: true, trackInventory: true, currentStock: 45, minStock: 10, unit: 'BAG',
     status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z'
   },
   {
     id: '2', name: 'Oat Milk (1L)', description: 'Barista edition oat milk',
-    sku: 'PRD-000002', barcode: '8999876543210', type: 'Inventory Item', category: 'Dairy & Alternatives',
+    sku: 'PRD-000002', imageUrl: '/products/PRD-000002.svg', barcode: '8999876543210', type: 'Inventory Item', category: 'Dairy & Alternatives',
     brand: 'Oatly', basePrice: 45000, costPrice: 32000, taxClass: 'Standard 11%',
     erpManaged: true, trackInventory: true, currentStock: 4, minStock: 12, unit: 'PCS',
     status: 'Active', createdAt: '2026-08-02T09:30:00Z', updatedAt: '2026-08-05T14:20:00Z'
   },
   {
-    id: '3', name: 'Delivery Fee', sku: 'PRD-000003', type: 'Service', category: 'Services',
+    id: '3', name: 'Delivery Fee', sku: 'PRD-000003', imageUrl: '/products/PRD-000003.svg', type: 'Service', category: 'Services',
     basePrice: 15000, taxClass: 'Zero Rated', erpManaged: false, trackInventory: false,
     currentStock: 0, minStock: 0, unit: 'TRX', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '4', name: 'Almond Croissant', sku: 'PRD-000004', type: 'Inventory Item', category: 'Pastries',
+    id: '4', name: 'Almond Croissant', sku: 'PRD-000004', imageUrl: '/products/PRD-000004.svg', type: 'Inventory Item', category: 'Pastries',
     basePrice: 35000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
     currentStock: 12, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-06T06:15:00Z',
     updatedAt: '2026-08-06T06:15:00Z'
@@ -145,6 +306,26 @@ let locations: Location[] = [
 ]
 
 let inventoryBalances: InventoryBalance[] = [
+  { id: 'IB-5-2', productId: '5', locationId: 'LOC-2', currentStock: 38, reservedStock: 0 },
+  { id: 'IB-6-2', productId: '6', locationId: 'LOC-2', currentStock: 39, reservedStock: 0 },
+  { id: 'IB-7-2', productId: '7', locationId: 'LOC-2', currentStock: 39, reservedStock: 0 },
+  { id: 'IB-8-2', productId: '8', locationId: 'LOC-2', currentStock: 22, reservedStock: 0 },
+  { id: 'IB-9-2', productId: '9', locationId: 'LOC-2', currentStock: 57, reservedStock: 0 },
+  { id: 'IB-10-2', productId: '10', locationId: 'LOC-2', currentStock: 15, reservedStock: 0 },
+  { id: 'IB-11-2', productId: '11', locationId: 'LOC-2', currentStock: 19, reservedStock: 0 },
+  { id: 'IB-12-2', productId: '12', locationId: 'LOC-2', currentStock: 46, reservedStock: 0 },
+  { id: 'IB-13-2', productId: '13', locationId: 'LOC-2', currentStock: 24, reservedStock: 0 },
+  { id: 'IB-14-2', productId: '14', locationId: 'LOC-2', currentStock: 48, reservedStock: 0 },
+  { id: 'IB-15-2', productId: '15', locationId: 'LOC-2', currentStock: 20, reservedStock: 0 },
+  { id: 'IB-16-2', productId: '16', locationId: 'LOC-2', currentStock: 15, reservedStock: 0 },
+  { id: 'IB-17-2', productId: '17', locationId: 'LOC-2', currentStock: 27, reservedStock: 0 },
+  { id: 'IB-18-2', productId: '18', locationId: 'LOC-2', currentStock: 26, reservedStock: 0 },
+  { id: 'IB-19-2', productId: '19', locationId: 'LOC-2', currentStock: 29, reservedStock: 0 },
+  { id: 'IB-20-2', productId: '20', locationId: 'LOC-2', currentStock: 53, reservedStock: 0 },
+  { id: 'IB-21-2', productId: '21', locationId: 'LOC-2', currentStock: 20, reservedStock: 0 },
+  { id: 'IB-22-2', productId: '22', locationId: 'LOC-2', currentStock: 56, reservedStock: 0 },
+  { id: 'IB-23-2', productId: '23', locationId: 'LOC-2', currentStock: 49, reservedStock: 0 },
+  { id: 'IB-24-2', productId: '24', locationId: 'LOC-2', currentStock: 29, reservedStock: 0 },
   { id: 'IB-1-1', productId: '1', locationId: 'LOC-1', currentStock: 30, reservedStock: 0 },
   { id: 'IB-1-2', productId: '1', locationId: 'LOC-2', currentStock: 10, reservedStock: 2 },
   { id: 'IB-1-3', productId: '1', locationId: 'LOC-3', currentStock: 5, reservedStock: 0 },
@@ -218,6 +399,9 @@ let stockAdjustments: StockAdjustment[] = [
     createdBy: 'Store Manager'
   }
 ]
+
+let salesTransactions: SalesTransaction[] = []
+let salesCounter = 1
 
 // Helper
 function checkTransferCompletion(trf: StockTransfer) {
@@ -734,5 +918,195 @@ export const mockErpApi = {
     if (!adj) throw new Error('Adjustment not found')
     adj.status = 'Rejected'
     return adj
+  },
+
+  // Sales
+  async getSalesTransactions(): Promise<SalesTransaction[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(salesTransactions))
+  },
+
+  async createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number }[] }): Promise<SalesTransaction> {
+    await delay()
+    
+    // 1. Validate locationId
+    if (!payload.locationId) throw new Error('Location is required')
+    if (payload.locationId === 'LOC-TRANSIT') throw new Error('Cannot sell from LOC-TRANSIT')
+    
+    const location = locations.find(l => l.id === payload.locationId)
+    if (!location) throw new Error('Location not found')
+
+    // 2. Validate all items & ATOMICITY check
+    if (!payload.items || payload.items.length === 0) {
+      throw new Error('Transaction must have at least one item')
+    }
+
+    // Merge duplicate products in payload
+    const mergedItems = new Map<string, number>()
+    payload.items.forEach(item => {
+      if (item.quantity <= 0) throw new Error('Quantity must be greater than 0')
+      const currentQty = mergedItems.get(item.productId) || 0
+      mergedItems.set(item.productId, currentQty + item.quantity)
+    })
+
+    const validatedItems: SalesTransactionItem[] = []
+    let totalSubtotal = 0
+
+    // ATOMICITY: Check everything before mutation
+    for (const [productId, quantity] of mergedItems.entries()) {
+      const product = products.find(p => p.id === productId)
+      if (!product) throw new Error(`Product not found (ID: ${productId})`)
+      if (product.status !== 'Active') throw new Error(`Cannot sell inactive product: ${product.name}`)
+      
+      const balance = inventoryBalances.find(b => b.productId === productId && b.locationId === payload.locationId)
+      const currentStock = balance ? balance.currentStock : 0
+      const reservedStock = balance ? balance.reservedStock : 0
+      const availableStock = currentStock - reservedStock
+
+      if (quantity > availableStock) {
+        throw new Error(`Cannot complete sale for ${product.name}. Requested: ${quantity}. Available: ${availableStock}.`)
+      }
+      
+      if (product.basePrice < 0) throw new Error(`Price cannot be negative for ${product.name}`)
+
+      const subtotal = product.basePrice * quantity
+      totalSubtotal += subtotal
+
+      validatedItems.push({
+        productId: product.id,
+        productNameSnapshot: product.name,
+        skuSnapshot: product.sku,
+        barcodeSnapshot: product.barcode,
+        unit: product.unit,
+        quantity: quantity,
+        unitPrice: product.basePrice,
+        discount: 0,
+        subtotal: subtotal
+      })
+    }
+
+    // Calculate final totals (Simplified tax/discount for Phase 1)
+    const discount = 0
+    const tax = totalSubtotal * 0.11 // 11% standard tax
+    const grandTotal = totalSubtotal - discount + tax
+
+    const saleId = `SALE-${salesCounter.toString().padStart(6, '0')}`
+    salesCounter++
+
+    const newSale: SalesTransaction = {
+      id: saleId,
+      transactionNumber: saleId,
+      locationId: payload.locationId,
+      status: 'Completed',
+      items: validatedItems,
+      subtotal: totalSubtotal,
+      discount: discount,
+      tax: tax,
+      grandTotal: grandTotal,
+      paymentStatus: 'Paid',
+      paymentMethod: payload.paymentMethod,
+      amountReceived: payload.amountReceived,
+      changeAmount: payload.changeAmount,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString()
+    }
+
+    // Mutate inventory and create StockMovements
+    for (const item of newSale.items) {
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === payload.locationId)!
+      
+      balance.currentStock -= item.quantity
+      // reservedStock remains unchanged
+      
+      recentMovements.unshift({
+        id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        date: new Date().toISOString(),
+        type: 'Sale',
+        productId: item.productId,
+        locationId: payload.locationId,
+        qty: -item.quantity,
+        balanceAfter: balance.currentStock,
+        user: 'System (POS)',
+        referenceId: newSale.id
+      })
+    }
+
+    salesTransactions.unshift(newSale)
+    return newSale
+  },
+
+  async voidSale(transactionId: string, authContext: AuthorizationContext): Promise<SalesTransaction> {
+    await delay(600)
+    
+    // PRE-FLIGHT VALIDATION
+    const transaction = salesTransactions.find(t => t.id === transactionId)
+    if (!transaction) {
+      throw new Error("Sales transaction not found.")
+    }
+
+    if (transaction.status !== 'Completed') {
+      throw new Error("Only completed transactions can be voided.")
+    }
+
+    if (transaction.locationId === 'LOC-TRANSIT') {
+      throw new Error("Transactions from LOC-TRANSIT cannot be voided.")
+    }
+
+    if (!transaction.items || transaction.items.length === 0) {
+      throw new Error("Transaction has no items to void.")
+    }
+
+    // AUTHORIZATION VALIDATION
+    if (!authContext.authorizedBy) {
+      throw new Error("Authorization is required to void transactions.")
+    }
+    
+    if (authContext.authorizedRole !== 'Manager' && authContext.authorizedRole !== 'Supervisor') {
+      throw new Error("Only Supervisors or Managers can authorize a void.")
+    }
+
+    if (!authContext.reason || authContext.reason.trim() === '') {
+      throw new Error("A valid reason must be provided to void a transaction.")
+    }
+
+    for (const item of transaction.items) {
+      if (item.quantity <= 0) {
+        throw new Error(`Invalid quantity for item ${item.productNameSnapshot}.`)
+      }
+      
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === transaction.locationId)
+      if (!balance) {
+        throw new Error(`Inventory balance not found for product ${item.productId} at location ${transaction.locationId}.`)
+      }
+    }
+
+    // ATOMIC MUTATION
+    for (const item of transaction.items) {
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === transaction.locationId)!
+      
+      // Return stock
+      balance.currentStock += item.quantity
+      // reservedStock remains unchanged
+      
+      // Create compensating movement
+      recentMovements.unshift({
+        id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        date: new Date().toISOString(),
+        type: 'Void',
+        productId: item.productId,
+        locationId: transaction.locationId,
+        qty: item.quantity,
+        balanceAfter: balance.currentStock,
+        user: authContext.authorizedBy, // Store authorized user in movement
+        referenceId: transaction.id
+      })
+    }
+
+    // Update status and audit trail
+    transaction.status = 'Voided'
+    transaction.voidedAt = new Date().toISOString()
+    transaction.authorizedBy = authContext.authorizedBy
+    transaction.voidReason = authContext.reason
+    return transaction
   }
 }
