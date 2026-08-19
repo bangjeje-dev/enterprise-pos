@@ -24,6 +24,36 @@ const router = createRouter({
           component: () => import('@/views/catalog/ProductFormView.vue')
         },
         {
+          path: 'catalog/categories',
+          name: 'categories',
+          component: () => import('@/views/catalog/CategoryListView.vue')
+        },
+        {
+          path: 'catalog/categories/new',
+          name: 'category-new',
+          component: () => import('@/views/catalog/CategoryFormView.vue')
+        },
+        {
+          path: 'catalog/categories/:id',
+          name: 'category-edit',
+          component: () => import('@/views/catalog/CategoryFormView.vue')
+        },
+        {
+          path: 'catalog/modifiers',
+          name: 'modifiers',
+          component: () => import('@/views/catalog/ModifierListView.vue')
+        },
+        {
+          path: 'catalog/modifiers/new',
+          name: 'modifier-new',
+          component: () => import('@/views/catalog/ModifierFormView.vue')
+        },
+        {
+          path: 'catalog/modifiers/:id',
+          name: 'modifier-edit',
+          component: () => import('@/views/catalog/ModifierFormView.vue')
+        },
+        {
           path: 'catalog/products/:id',
           name: 'product-edit',
           component: () => import('@/views/catalog/ProductFormView.vue')

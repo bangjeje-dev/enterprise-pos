@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import type { Product } from '@/stores/product'
+import { useCategoryStore } from '@/stores/category'
 
 const props = defineProps<{
   modelValue: Partial<Product>
@@ -8,6 +10,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: Partial<Product>): void
 }>()
+
+const categoryStore = useCategoryStore()
+
+onMounted(async () => {
+  if (categoryStore.categories.length === 0) {
+    await categoryStore.fetchCategories()
+  }
+})
 
 const updateField = (field: keyof Product, value: any) => {
   emit('update:modelValue', { ...props.modelValue, [field]: value })
@@ -53,15 +63,15 @@ const updateField = (field: keyof Product, value: any) => {
         <div>
           <label class="block mb-2 text-sm font-medium text-gray-900">Category <span class="text-red-600">*</span></label>
           <select 
-            :value="modelValue.category"
-            @change="e => updateField('category', (e.target as HTMLSelectElement).value)"
+            :value="modelValue.categoryId"
+            @change="e => updateField('categoryId', (e.target as HTMLSelectElement).value)"
             class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+            :disabled="categoryStore.isLoading"
           >
             <option value="">Select a category</option>
-            <option value="Beverages">Beverages</option>
-            <option value="Pastries">Pastries</option>
-            <option value="Dairy & Alternatives">Dairy & Alternatives</option>
-            <option value="Services">Services</option>
+            <option v-for="cat in categoryStore.activeCategories" :key="cat.id" :value="cat.id">
+              {{ cat.name }}
+            </option>
           </select>
         </div>
         

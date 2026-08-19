@@ -7,9 +7,10 @@ import { useToast } from '@/composables/useToast'
 import ProductSearch from '@/components/pos/ProductSearch.vue'
 import ProductGrid from '@/components/pos/ProductGrid.vue'
 import PosCart from '@/components/pos/PosCart.vue'
-import type { CartItemData } from '@/components/pos/PosCart.vue'
+import type { CartItemData, SelectedModifier } from '@/components/pos/PosCart.vue'
 import CheckoutModal from '@/components/pos/CheckoutModal.vue'
 import ReceiptPreview from '@/components/pos/ReceiptPreview.vue'
+import ModifierSelectionModal from '@/components/pos/ModifierSelectionModal.vue'
 import type { SalesTransaction } from '@/services/mockErpApi'
 
 const productStore = useProductStore()
@@ -30,6 +31,8 @@ const cartItems = ref<CartItemData[]>([])
 
 const isCheckoutModalOpen = ref(false)
 const isReceiptModalOpen = ref(false)
+const isModifierModalOpen = ref(false)
+const selectedProductForModifier = ref<Product | null>(null)
 const currentTransaction = ref<SalesTransaction | null>(null)
 
 // Fetch data on mount
@@ -82,7 +85,36 @@ watch([searchQuery, activeCategory], () => {
   currentPage.value = 1
 })
 
+const isSameModifierConfig = (a: SelectedModifier[] | undefined, b: SelectedModifier[] | undefined) => {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  if (a.length !== b.length) return false
+  
+  // Sort and compare optionIds for strict equality
+  const sortedA = [...a].sort((x, y) => x.optionId.localeCompare(y.optionId)).map(x => x.optionId).join(',')
+  const sortedB = [...b].sort((x, y) => x.optionId.localeCompare(y.optionId)).map(x => x.optionId).join(',')
+  return sortedA === sortedB
+}
+
 const handleAddToCart = (product: Product) => {
+  if (product.modifierGroupIds && product.modifierGroupIds.length > 0) {
+    selectedProductForModifier.value = product
+    isModifierModalOpen.value = true
+    return
+  }
+  
+  addCartItemWithModifiers(product, undefined)
+}
+
+const handleModifierSelectionConfirm = (modifiers: SelectedModifier[]) => {
+  if (selectedProductForModifier.value) {
+    addCartItemWithModifiers(selectedProductForModifier.value, modifiers)
+  }
+  isModifierModalOpen.value = false
+  selectedProductForModifier.value = null
+}
+
+const addCartItemWithModifiers = (product: Product, modifiers?: SelectedModifier[]) => {
   // Check available stock first
   const balance = inventoryStore.inventoryBalances.find(b => b.productId === product.id && b.locationId === currentLocationId)
   const currentStock = balance ? balance.currentStock : 0
@@ -91,19 +123,21 @@ const handleAddToCart = (product: Product) => {
 
   if (availableStock <= 0) return
 
-  const existingItemIndex = cartItems.value.findIndex(item => item.productId === product.id)
+  // Find existing identical cart item (same product + same modifiers)
+  const existingItemIndex = cartItems.value.findIndex(item => 
+    item.productId === product.id && isSameModifierConfig(item.selectedModifiers, modifiers)
+  )
   
   if (existingItemIndex > -1) {
     const existingItem = cartItems.value[existingItemIndex]!
-    // Check if adding one more exceeds stock
     if (existingItem.quantity < availableStock) {
       existingItem.quantity += 1
     } else {
       alert(`Maximum available stock is ${availableStock} ${product.unit}.`)
     }
   } else {
-    // Add new item to cart
     cartItems.value.push({
+      cartItemId: `cart-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       productId: product.id,
       name: product.name,
       sku: product.sku,
@@ -112,24 +146,28 @@ const handleAddToCart = (product: Product) => {
       unit: product.unit,
       availableStock: availableStock,
       category: product.category,
-      imageUrl: product.imageUrl
+      imageUrl: product.imageUrl,
+      selectedModifiers: modifiers
     })
   }
 }
 
-const handleUpdateQuantity = (productId: string, newQuantity: number) => {
-  const itemIndex = cartItems.value.findIndex(item => item.productId === productId)
+const handleUpdateQuantity = (cartItemId: string, newQuantity: number) => {
+  const itemIndex = cartItems.value.findIndex(item => item.cartItemId === cartItemId)
   if (itemIndex > -1) {
     cartItems.value[itemIndex]!.quantity = newQuantity
   }
 }
 
-const handleRemoveFromCart = (productId: string) => {
-  cartItems.value = cartItems.value.filter(item => item.productId !== productId)
+const handleRemoveFromCart = (cartItemId: string) => {
+  cartItems.value = cartItems.value.filter(item => item.cartItemId !== cartItemId)
 }
 
 const cartTotal = computed(() => {
-  return cartItems.value.reduce((total, item) => total + (item.unitPrice * item.quantity), 0)
+  return cartItems.value.reduce((total, item) => {
+    const modifierSum = item.selectedModifiers?.reduce((mSum, m) => mSum + m.priceAdjustment, 0) || 0
+    return total + ((item.unitPrice + modifierSum) * item.quantity)
+  }, 0)
 })
 
 const handleCheckoutClick = () => {
@@ -270,10 +308,17 @@ const handleNewSale = () => {
     />
     
     <ReceiptPreview 
-      :isOpen="isReceiptModalOpen"
+      :is-open="isReceiptModalOpen"
       :transaction="currentTransaction"
       @close="isReceiptModalOpen = false"
       @new-sale="handleNewSale"
+    />
+
+    <ModifierSelectionModal
+      :is-open="isModifierModalOpen"
+      :product="selectedProductForModifier"
+      @close="isModifierModalOpen = false; selectedProductForModifier = null"
+      @add="handleModifierSelectionConfirm"
     />
   </div>
 </template>

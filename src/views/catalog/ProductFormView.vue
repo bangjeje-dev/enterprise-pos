@@ -11,6 +11,7 @@ import PricingCard from '@/components/catalog/forms/PricingCard.vue'
 import InventoryCard from '@/components/catalog/forms/InventoryCard.vue'
 import TaxSupplierCard from '@/components/catalog/forms/TaxSupplierCard.vue'
 import ImageUploadCard from '@/components/catalog/forms/ImageUploadCard.vue'
+import ModifiersCard from '@/components/catalog/forms/ModifiersCard.vue'
 import VariantsCard from '@/components/catalog/forms/VariantsCard.vue'
 import BranchInventoryCard from '@/components/catalog/forms/BranchInventoryCard.vue'
 import ProductStatusCard from '@/components/catalog/forms/ProductStatusCard.vue'
@@ -34,6 +35,7 @@ const formData = ref<Partial<Product>>({
   multipleBarcodes: [],
   type: 'Inventory Item',
   category: '',
+  modifierGroupIds: [],
   brand: '',
   basePrice: 0,
   costPrice: 0,
@@ -77,7 +79,7 @@ onMounted(() => {
 })
 
 const handleSave = async () => {
-  if (!formData.value.name || !formData.value.category || !formData.value.sku || !formData.value.unit) {
+  if (!formData.value.name || !formData.value.categoryId || !formData.value.sku || !formData.value.unit) {
     showToast('Validation Error', 'Please fill in all required fields.', 'error')
     return
   }
@@ -170,6 +172,7 @@ const handleCancel = () => {
       <!-- Right Column (~33%) -->
       <div class="lg:col-span-1 space-y-6">
         <ProductStatusCard v-model="formData" />
+        <ModifiersCard v-model="formData.modifierGroupIds!" />
         <ImageUploadCard v-model="formData" />
         <TaxSupplierCard v-model="formData" />
         <ERPStatusCard v-model="formData" />

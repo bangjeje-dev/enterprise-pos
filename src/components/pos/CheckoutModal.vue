@@ -64,7 +64,8 @@ const completePayment = async () => {
       changeAmount: paymentData.value.changeAmount,
       items: props.cart.map(item => ({
         productId: item.productId,
-        quantity: item.quantity
+        quantity: item.quantity,
+        modifiers: item.selectedModifiers // pass along the modifier snapshot
       }))
     }
     

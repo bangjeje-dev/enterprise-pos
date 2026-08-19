@@ -11,6 +11,8 @@ export interface Product {
   multipleBarcodes?: string[]
   type: ProductType
   category: string
+  categoryId?: string
+  modifierGroupIds?: string[]
   brand?: string
   basePrice: number
   costPrice?: number
@@ -36,6 +38,35 @@ export interface Product {
   branchInventory?: any[]
   createdBy?: string
   updatedBy?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Types from Catalog domain
+export interface Category {
+  id: string
+  name: string
+  description?: string
+  status: 'Active' | 'Inactive'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ModifierOption {
+  id: string
+  name: string
+  priceAdjustment: number
+  status: 'Active' | 'Inactive'
+}
+
+export interface ModifierGroup {
+  id: string
+  name: string
+  description?: string
+  minSelections: number
+  maxSelections: number
+  status: 'Active' | 'Inactive'
+  options: ModifierOption[]
   createdAt: string
   updatedAt: string
 }
@@ -119,6 +150,13 @@ export interface SalesTransactionItem {
   unitPrice: number
   discount: number
   subtotal: number
+  modifiers?: {
+    groupId: string
+    groupName: string
+    optionId: string
+    optionName: string
+    priceAdjustment: number
+  }[]
 }
 
 export interface SalesTransaction {
@@ -149,6 +187,49 @@ export interface AuthorizationContext {
 }
 
 // Mock Database State
+let categories: Category[] = [
+  { id: 'cat-1', name: 'Beverages', description: 'Drinks and beverages', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'cat-2', name: 'Bakery', description: 'Freshly baked goods', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'cat-3', name: 'Snacks', description: 'Quick bites and snacks', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'cat-4', name: 'Pantry', description: 'Pantry staples and ingredients', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'cat-5', name: 'Coffee', description: 'Coffee beans and grounds', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'cat-6', name: 'Dairy', description: 'Milk, cheese, and dairy products', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+]
+
+let modifierGroups: ModifierGroup[] = [
+  {
+    id: 'mg-1',
+    name: 'Sugar Level',
+    description: 'Amount of sugar in the beverage',
+    status: 'Active',
+    minSelections: 1,
+    maxSelections: 1,
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z',
+    options: [
+      { id: 'opt-1-1', name: 'No Sugar', priceAdjustment: 0, status: 'Active' },
+      { id: 'opt-1-2', name: 'Less Sugar', priceAdjustment: 0, status: 'Active' },
+      { id: 'opt-1-3', name: 'Normal', priceAdjustment: 0, status: 'Active' },
+      { id: 'opt-1-4', name: 'Extra Sugar', priceAdjustment: 0, status: 'Active' }
+    ]
+  },
+  {
+    id: 'mg-2',
+    name: 'Toppings',
+    description: 'Add extra toppings to your drink',
+    status: 'Active',
+    minSelections: 0,
+    maxSelections: 3,
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z',
+    options: [
+      { id: 'opt-2-1', name: 'Boba', priceAdjustment: 5000, status: 'Active' },
+      { id: 'opt-2-2', name: 'Grass Jelly', priceAdjustment: 4000, status: 'Active' },
+      { id: 'opt-2-3', name: 'Cheese Foam', priceAdjustment: 7000, status: 'Active' }
+    ]
+  }
+]
+
 let products: Product[] = [
   {
     id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
@@ -403,6 +484,52 @@ let stockAdjustments: StockAdjustment[] = [
 let salesTransactions: SalesTransaction[] = []
 let salesCounter = 1
 
+const STORAGE_KEY = 'enterprise_pos_db'
+
+function loadDb() {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  
+  const data = localStorage.getItem(STORAGE_KEY)
+  if (data) {
+    try {
+      const parsed = JSON.parse(data)
+      if (parsed.categories) categories = parsed.categories
+      if (parsed.modifierGroups) modifierGroups = parsed.modifierGroups
+      if (parsed.products) products = parsed.products
+      if (parsed.locations) locations = parsed.locations
+      if (parsed.inventoryBalances) inventoryBalances = parsed.inventoryBalances
+      if (parsed.recentMovements) recentMovements = parsed.recentMovements
+      if (parsed.stockTransfers) stockTransfers = parsed.stockTransfers
+      if (parsed.stockAdjustments) stockAdjustments = parsed.stockAdjustments
+      if (parsed.salesTransactions) salesTransactions = parsed.salesTransactions
+      if (parsed.salesCounter) salesCounter = parsed.salesCounter
+    } catch (e) {
+      console.error('Failed to load mock DB from localStorage:', e)
+    }
+  }
+}
+
+function saveDb() {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  
+  const data = {
+    categories,
+    modifierGroups,
+    products,
+    locations,
+    inventoryBalances,
+    recentMovements,
+    stockTransfers,
+    stockAdjustments,
+    salesTransactions,
+    salesCounter
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
+// Load DB immediately upon script evaluation
+loadDb()
+
 // Helper
 function checkTransferCompletion(trf: StockTransfer) {
   let allResolved = true
@@ -433,11 +560,14 @@ function checkTransferCompletion(trf: StockTransfer) {
 // Simulate network delay
 const delay = (ms = 500) => new Promise(resolve => setTimeout(resolve, ms))
 
-export const mockErpApi = {
+const api = {
   // Products
   async getProducts(): Promise<Product[]> {
     await delay()
-    return JSON.parse(JSON.stringify(products))
+    return products.map(p => {
+      const cat = categories.find(c => c.id === p.categoryId)
+      return { ...p, category: cat ? cat.name : p.category }
+    })
   },
   async createProduct(product: Product): Promise<Product> {
     await delay()
@@ -502,6 +632,113 @@ export const mockErpApi = {
     await delay()
     return JSON.parse(JSON.stringify(locations))
   },
+  // Category CRUD
+  async getCategories(): Promise<Category[]> {
+    await delay()
+    return [...categories]
+  },
+  async getCategoryById(id: string): Promise<Category> {
+    await delay()
+    const cat = categories.find(c => c.id === id)
+    if (!cat) throw new Error('Category not found')
+    return { ...cat }
+  },
+  async createCategory(cat: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Promise<Category> {
+    await delay()
+    const newCat: Category = {
+      ...cat,
+      id: `cat-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    categories.push(newCat)
+    return newCat
+  },
+  async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
+    await delay()
+    const index = categories.findIndex(c => c.id === id)
+    if (index === -1) throw new Error('Category not found')
+    categories[index] = { ...categories[index], ...updates, updatedAt: new Date().toISOString() } as Category
+    return categories[index]
+  },
+  async deleteCategory(id: string): Promise<void> {
+    await delay()
+    const hasProducts = products.some(p => p.categoryId === id)
+    if (hasProducts) {
+      throw new Error('Cannot delete category because it has products.')
+    }
+    categories = categories.filter(c => c.id !== id)
+  },
+  
+  // ModifierGroup CRUD
+  async getModifierGroups(): Promise<ModifierGroup[]> {
+    await delay()
+    return [...modifierGroups]
+  },
+  async getModifierGroupById(id: string): Promise<ModifierGroup> {
+    await delay()
+    const group = modifierGroups.find(g => g.id === id)
+    if (!group) throw new Error('Modifier Group not found')
+    return JSON.parse(JSON.stringify(group))
+  },
+  async createModifierGroup(group: Omit<ModifierGroup, 'id' | 'createdAt' | 'updatedAt'>): Promise<ModifierGroup> {
+    await delay()
+    
+    // Validation
+    if (group.minSelections < 0) throw new Error('Min selections must be >= 0')
+    if (group.maxSelections < 1) throw new Error('Max selections must be >= 1')
+    if (group.minSelections > group.maxSelections) throw new Error('Min selections cannot be greater than max selections')
+    if (group.options.length < group.maxSelections) throw new Error('Number of options must be >= max selections')
+      
+    const newGroup: ModifierGroup = {
+      ...group,
+      id: `mg-${Date.now()}`,
+      options: group.options.map(opt => ({
+        ...opt,
+        id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    modifierGroups.push(newGroup)
+    return newGroup
+  },
+  async updateModifierGroup(id: string, updates: Partial<ModifierGroup>): Promise<ModifierGroup> {
+    await delay()
+    const index = modifierGroups.findIndex(g => g.id === id)
+    if (index === -1) throw new Error('Modifier Group not found')
+    
+    const existing = modifierGroups[index]
+    const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() } as ModifierGroup
+    
+    // Validation
+    if (updated.minSelections < 0) throw new Error('Min selections must be >= 0')
+    if (updated.maxSelections < 1) throw new Error('Max selections must be >= 1')
+    if (updated.minSelections > updated.maxSelections) throw new Error('Min selections cannot be greater than max selections')
+    if (updated.options.length < updated.maxSelections) throw new Error('Number of options must be >= max selections')
+    
+    // Ensure all options have IDs
+    updated.options = updated.options.map(opt => ({
+      ...opt,
+      id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    }))
+    
+    modifierGroups[index] = updated
+    return modifierGroups[index]
+  },
+  async deleteModifierGroup(id: string): Promise<void> {
+    await delay()
+    
+    // Safety check: is it used by any active products?
+    const usedByProducts = products.filter(p => p.modifierGroupIds?.includes(id))
+    if (usedByProducts.length > 0) {
+      throw new Error(`Cannot delete modifier group. It is used by ${usedByProducts.length} product(s).`)
+    }
+    
+    modifierGroups = modifierGroups.filter(g => g.id !== id)
+  },
+
+  // Inventory
   async getInventoryBalances(): Promise<InventoryBalance[]> {
     await delay()
     return JSON.parse(JSON.stringify(inventoryBalances))
@@ -1110,3 +1347,19 @@ export const mockErpApi = {
     return transaction
   }
 }
+
+export const mockErpApi = new Proxy(api, {
+  get(target, prop, receiver) {
+    const origMethod = target[prop as keyof typeof api]
+    if (typeof origMethod === 'function') {
+      return async function (this: any, ...args: any[]) {
+        const result = await (origMethod as Function).apply(this, args)
+        if (typeof prop === 'string' && !prop.startsWith('get')) {
+          saveDb()
+        }
+        return result
+      }
+    }
+    return Reflect.get(target, prop, receiver)
+  }
+})

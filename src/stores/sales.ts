@@ -19,7 +19,7 @@ export const useSalesStore = defineStore('sales', () => {
     }
   }
 
-  async function createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number }[] }) {
+  async function createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[] }) {
     isLoading.value = true
     error.value = null
     try {

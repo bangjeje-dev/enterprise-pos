@@ -12,6 +12,13 @@ const props = defineProps<{
   availableStock: number
   category: string
   imageUrl?: string
+  selectedModifiers?: {
+    groupId: string
+    groupName: string
+    optionId: string
+    optionName: string
+    priceAdjustment: number
+  }[]
 }>()
 
 const emit = defineEmits<{
@@ -27,7 +34,11 @@ const formatPrice = (value: number) => {
   }).format(value)
 }
 
-const subtotal = computed(() => props.unitPrice * props.quantity)
+const modifierSum = computed(() => {
+  return props.selectedModifiers?.reduce((sum, mod) => sum + mod.priceAdjustment, 0) || 0
+})
+
+const subtotal = computed(() => (props.unitPrice + modifierSum.value) * props.quantity)
 
 const increaseQty = () => {
   if (props.quantity < props.availableStock) {
@@ -51,8 +62,17 @@ const decreaseQty = () => {
       <div>
         <h4 class="text-sm font-medium text-gray-900 truncate" :title="name">{{ name }}</h4>
         <div class="text-xs text-gray-500 mt-0.5">
-          {{ formatPrice(unitPrice) }}
+          {{ formatPrice(unitPrice + modifierSum) }}
           <span v-if="unit">/ {{ unit }}</span>
+        </div>
+        <div v-if="selectedModifiers && selectedModifiers.length > 0" class="mt-1 flex flex-wrap gap-1">
+          <span 
+            v-for="mod in selectedModifiers" 
+            :key="mod.groupId"
+            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700"
+          >
+            {{ mod.optionName }} <span v-if="mod.priceAdjustment > 0" class="ml-1 opacity-75">(+{{ formatPrice(mod.priceAdjustment) }})</span>
+          </span>
         </div>
       </div>
     </div>

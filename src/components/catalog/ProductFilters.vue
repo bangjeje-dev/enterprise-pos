@@ -4,7 +4,11 @@ import { useProductStore } from '@/stores/product'
 import { storeToRefs } from 'pinia'
 import { Search, SlidersHorizontal, X } from '@lucide/vue'
 
+import { useCategoryStore } from '@/stores/category'
+
 const store = useProductStore()
+const categoryStore = useCategoryStore()
+
 const { 
   searchQuery, 
   filterCategory, 
@@ -19,7 +23,11 @@ const {
 
 const showAdvanced = ref(false)
 
-const categories = ['Beverages', 'Pastries', 'Dairy & Alternatives', 'Services']
+// Fetch categories if empty
+if (categoryStore.categories.length === 0) {
+  categoryStore.fetchCategories()
+}
+
 const statuses = ['Active', 'Draft', 'Inactive', 'Archived']
 const brands = ['Kopi Kenangan', 'Oatly', 'Nestle', 'Local']
 const types = ['Inventory Item', 'Service', 'Non-Inventory', 'Bundle', 'Variant Product']
@@ -59,7 +67,7 @@ const clearFilters = () => {
       <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
         <select v-model="filterCategory" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">
           <option value="">All Categories</option>
-          <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+          <option v-for="cat in categoryStore.activeCategories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
         </select>
         
         <select v-model="filterStatus" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">

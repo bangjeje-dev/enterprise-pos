@@ -79,10 +79,19 @@ const formatCurrency = (val: number) => {
           </div>
           
           <div class="mb-4">
-            <div v-for="item in transaction.items" :key="item.productId" class="mb-3">
+            <div v-for="(item, idx) in transaction.items" :key="idx" class="mb-3">
               <div class="font-bold">{{ item.productNameSnapshot }}</div>
+              
+              <!-- Modifiers -->
+              <div v-if="item.modifiers && item.modifiers.length > 0" class="pl-2 mt-0.5 space-y-0.5">
+                <div v-for="mod in item.modifiers" :key="mod.groupId" class="text-xs text-gray-500 flex justify-between">
+                  <span>- {{ mod.optionName }}</span>
+                  <span v-if="mod.priceAdjustment > 0">(+{{ formatCurrency(mod.priceAdjustment) }})</span>
+                </div>
+              </div>
+
               <div class="flex justify-between text-xs mt-1">
-                <span>{{ item.quantity }} × {{ formatCurrency(item.unitPrice) }}</span>
+                <span>{{ item.quantity }} × {{ formatCurrency(item.unitPrice + (item.modifiers?.reduce((s, m) => s + m.priceAdjustment, 0) || 0)) }}</span>
                 <span>{{ formatCurrency(item.subtotal) }}</span>
               </div>
             </div>

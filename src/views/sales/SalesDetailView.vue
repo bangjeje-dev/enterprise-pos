@@ -272,15 +272,24 @@ const handleVoid = async () => {
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="item in transaction.items" :key="item.productId" class="hover:bg-gray-50">
+                <tr v-for="(item, idx) in transaction.items" :key="idx" class="hover:bg-gray-50">
                   <td class="px-6 py-4">
                     <div class="text-sm font-bold text-gray-900">{{ item.productNameSnapshot }}</div>
+                    <div v-if="item.modifiers && item.modifiers.length > 0" class="mt-1 flex flex-wrap gap-1">
+                      <span 
+                        v-for="mod in item.modifiers" 
+                        :key="mod.groupId"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                      >
+                        {{ mod.optionName }} <span v-if="mod.priceAdjustment > 0" class="ml-1 opacity-75">(+{{ formatCurrency(mod.priceAdjustment) }})</span>
+                      </span>
+                    </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {{ item.skuSnapshot }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                    {{ formatCurrency(item.unitPrice) }}
+                    {{ formatCurrency(item.unitPrice + (item.modifiers?.reduce((s, m) => s + m.priceAdjustment, 0) || 0)) }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center font-bold">
                     {{ item.quantity }} <span class="text-gray-500 font-normal text-xs ml-1">{{ item.unit }}</span>

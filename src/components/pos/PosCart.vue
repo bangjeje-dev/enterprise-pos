@@ -4,7 +4,16 @@ import CartItem from './CartItem.vue'
 import CartSummary from './CartSummary.vue'
 import { ShoppingBag } from '@lucide/vue'
 
+export interface SelectedModifier {
+  groupId: string
+  groupName: string
+  optionId: string
+  optionName: string
+  priceAdjustment: number
+}
+
 export interface CartItemData {
+  cartItemId: string
   productId: string
   name: string
   sku: string
@@ -14,6 +23,7 @@ export interface CartItemData {
   availableStock: number
   category: string
   imageUrl?: string
+  selectedModifiers?: SelectedModifier[]
 }
 
 const props = defineProps<{
@@ -22,14 +32,17 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:quantity', productId: string, quantity: number): void
-  (e: 'remove', productId: string): void
+  (e: 'update:quantity', cartItemId: string, quantity: number): void
+  (e: 'remove', cartItemId: string): void
   (e: 'checkout'): void
   (e: 'clear'): void
 }>()
 
 const subtotal = computed(() => {
-  return props.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
+  return props.items.reduce((sum, item) => {
+    const modifierSum = item.selectedModifiers?.reduce((mSum, m) => mSum + m.priceAdjustment, 0) || 0
+    return sum + ((item.unitPrice + modifierSum) * item.quantity)
+  }, 0)
 })
 
 // Phase 2A: hardcoded discount and tax
@@ -67,12 +80,11 @@ const totalItems = computed(() => {
 
     <!-- Cart Items -->
     <div v-else class="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
-      <CartItem 
-        v-for="item in items" 
-        :key="item.productId" 
-        v-bind="item"
-        @update:quantity="emit('update:quantity', item.productId, $event)"
-        @remove="emit('remove', item.productId)"
+      <CartItem          v-for="item in items" 
+          :key="item.cartItemId"
+          v-bind="item"
+          @update:quantity="(qty) => emit('update:quantity', item.cartItemId, qty)"
+          @remove="() => emit('remove', item.cartItemId)"
       />
     </div>
     
