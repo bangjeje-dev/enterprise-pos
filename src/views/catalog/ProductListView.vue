@@ -19,7 +19,7 @@ const allColumns = [
   { id: 'updated', label: 'Updated At' }
 ]
 
-const visibleColumns = ref(['image', 'name', 'sku', 'category', 'price', 'stock', 'status'])
+const visibleColumns = ref(['image', 'name', 'sku', 'barcode', 'category', 'price', 'stock', 'status'])
 const showColumnDropdown = ref(false)
 
 const toggleColumn = (id: string) => {

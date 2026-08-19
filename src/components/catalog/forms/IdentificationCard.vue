@@ -43,6 +43,7 @@ const removeBarcode = (index: number) => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label class="block mb-2 text-sm font-medium text-gray-900">Stock Keeping Unit (SKU) <span class="text-red-600">*</span></label>
+          <p class="text-xs text-gray-500 mb-2">Internal product code</p>
           <input 
             type="text" 
             :value="modelValue.sku"
@@ -55,7 +56,8 @@ const removeBarcode = (index: number) => {
         </div>
         
         <div>
-          <label class="block mb-2 text-sm font-medium text-gray-900">Primary Barcode</label>
+          <label class="block mb-2 text-sm font-medium text-gray-900">Barcode</label>
+          <p class="text-xs text-gray-500 mb-2">Scannable product code</p>
           <input 
             type="text" 
             :value="modelValue.barcode"

@@ -232,19 +232,19 @@ let modifierGroups: ModifierGroup[] = [
 
 let products: Product[] = [
   {
-    id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
+    id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', barcode: '8991234567890', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
     basePrice: 8000, costPrice: 4800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
     currentStock: 44, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '6', name: 'Chocolate Cake Slice', sku: 'PRD-000006', imageUrl: '/products/PRD-000006.svg', type: 'Inventory Item', category: 'Bakery',
+    id: '6', name: 'Chocolate Cake Slice', sku: 'PRD-000006', barcode: '8992345678901', imageUrl: '/products/PRD-000006.svg', type: 'Inventory Item', category: 'Bakery',
     basePrice: 35000, costPrice: 21000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
     currentStock: 20, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '7', name: 'Potato Chips (75g)', sku: 'PRD-000007', imageUrl: '/products/PRD-000007.svg', type: 'Inventory Item', category: 'Snacks',
+    id: '7', name: 'Potato Chips (75g)', sku: 'PRD-000007', barcode: '8993456789012', imageUrl: '/products/PRD-000007.svg', type: 'Inventory Item', category: 'Snacks',
     basePrice: 15000, costPrice: 9000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
     currentStock: 57, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'

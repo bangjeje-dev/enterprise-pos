@@ -96,6 +96,16 @@ const isSameModifierConfig = (a: SelectedModifier[] | undefined, b: SelectedModi
   return sortedA === sortedB
 }
 
+const handleSearchEnter = () => {
+  if (filteredProducts.value.length === 1) {
+    const item = filteredProducts.value[0]
+    if (item) {
+      handleAddToCart(item.product)
+      searchQuery.value = ''
+    }
+  }
+}
+
 const handleAddToCart = (product: Product) => {
   if (product.modifierGroupIds && product.modifierGroupIds.length > 0) {
     selectedProductForModifier.value = product
@@ -208,7 +218,7 @@ const handleNewSale = () => {
       <!-- Search and Category Toolbar -->
       <div class="flex-shrink-0 border-b border-gray-200 bg-white">
         <div class="px-4 lg:px-6 py-3 border-b border-gray-100">
-          <ProductSearch v-model="searchQuery" />
+          <ProductSearch v-model="searchQuery" @enter="handleSearchEnter" />
         </div>
         <div class="px-4 lg:px-6 py-3 flex items-center justify-between">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-1">

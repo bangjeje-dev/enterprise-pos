@@ -8,6 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
+  (e: 'enter'): void
 }>()
 
 const localQuery = ref(props.modelValue)
@@ -18,6 +19,10 @@ watch(() => props.modelValue, (newVal) => {
 
 const handleInput = () => {
   emit('update:modelValue', localQuery.value)
+}
+
+const handleEnter = () => {
+  emit('enter')
 }
 
 const clearSearch = () => {
@@ -35,6 +40,7 @@ const clearSearch = () => {
       type="text" 
       v-model="localQuery"
       @input="handleInput"
+      @keyup.enter="handleEnter"
       class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 py-2.5 transition-colors shadow-sm" 
       placeholder="Search product by name, SKU, or barcode..." 
     >
