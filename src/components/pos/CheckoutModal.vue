@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { X } from 'lucide-vue-next'
+import { ref, computed, watch, onMounted } from 'vue'
+import { X, Search, User, Star } from 'lucide-vue-next'
 import PaymentCash from './PaymentCash.vue'
 import PaymentCard from './PaymentCard.vue'
 import PaymentQris from './PaymentQris.vue'
 import type { CartItemData } from './PosCart.vue'
 import { useSalesStore } from '@/stores/sales'
+import { useCustomerStore } from '@/stores/customer'
+import { useLoyaltyStore } from '@/stores/loyalty'
 
 const props = defineProps<{
   isOpen: boolean
@@ -21,6 +23,17 @@ const emit = defineEmits<{
 }>()
 
 const salesStore = useSalesStore()
+const customerStore = useCustomerStore()
+const loyaltyStore = useLoyaltyStore()
+
+onMounted(() => {
+  if (customerStore.customers.length === 0) {
+    customerStore.fetchCustomers()
+  }
+  if (loyaltyStore.programs.length === 0) {
+    loyaltyStore.fetchPrograms()
+  }
+})
 
 const paymentMethods = [
   { id: 'Cash', label: 'Cash' },
@@ -35,6 +48,46 @@ const isPaymentValid = ref(false)
 const paymentData = ref({ amountReceived: 0, changeAmount: 0 })
 const isSubmitting = ref(false)
 const checkoutError = ref<string | null>(null)
+
+// Loyalty & Customer state
+const selectedCustomerId = ref<string>('')
+const redeemPoints = ref(false)
+const customerPointsBalance = ref(0)
+const isPointsLoading = ref(false)
+
+watch(selectedCustomerId, async (newId) => {
+  redeemPoints.value = false
+  customerPointsBalance.value = 0
+  if (newId) {
+    isPointsLoading.value = true
+    customerPointsBalance.value = await loyaltyStore.fetchPointsBalance(newId)
+    isPointsLoading.value = false
+  }
+})
+
+const selectedCustomer = computed(() => {
+  return customerStore.customers.find(c => c.id === selectedCustomerId.value)
+})
+
+const applicableLoyaltyProgram = computed(() => {
+  if (!selectedCustomer.value?.loyaltyProgramId) return null
+  return loyaltyStore.activePrograms.find(p => p.id === selectedCustomer.value!.loyaltyProgramId)
+})
+
+const maxRedeemableBlocks = computed(() => {
+  if (!applicableLoyaltyProgram.value) return 0
+  return Math.floor(customerPointsBalance.value / applicableLoyaltyProgram.value.redeemRatePoints)
+})
+
+const loyaltyDiscountAmount = computed(() => {
+  if (!redeemPoints.value || !applicableLoyaltyProgram.value) return 0
+  const neededBlocks = Math.ceil(props.total / applicableLoyaltyProgram.value.redeemRateAmount)
+  const actualBlocks = Math.min(maxRedeemableBlocks.value, neededBlocks)
+  const discount = actualBlocks * applicableLoyaltyProgram.value.redeemRateAmount
+  return Math.min(discount, props.total)
+})
+
+const finalTotal = computed(() => Math.max(0, props.total - loyaltyDiscountAmount.value))
 
 const selectMethod = (method: PaymentMethodType) => {
   if (isSubmitting.value) return
@@ -66,10 +119,12 @@ const completePayment = async () => {
         productId: item.productId,
         quantity: item.quantity,
         modifiers: item.selectedModifiers // pass along the modifier snapshot
-      }))
+      })),
+      customerId: selectedCustomerId.value || undefined,
+      redeemPoints: redeemPoints.value
     }
     
-    const transaction = await salesStore.createSale(payload)
+    const transaction = await salesStore.createSale(payload as any)
     
     emit('success', transaction)
   } catch (error: any) {
@@ -110,7 +165,47 @@ const formatCurrency = (val: number) => {
         <div class="flex flex-col md:flex-row h-full max-h-[90vh]">
           <!-- Order Summary Sidebar -->
           <div class="w-full md:w-1/3 bg-white border-r border-gray-200 flex flex-col p-6 overflow-y-auto">
-            <h2 class="text-lg font-bold text-gray-900 mb-6">Order Summary</h2>
+            <h2 class="text-lg font-bold text-gray-900 mb-4">Customer & Order</h2>
+
+            <!-- Customer Selection -->
+            <div class="mb-6 space-y-2">
+              <label class="block text-sm font-medium text-gray-700">Select Customer</label>
+              <div class="relative">
+                <User class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select 
+                  v-model="selectedCustomerId"
+                  class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="">Walk-in Customer</option>
+                  <option v-for="c in customerStore.activeCustomers" :key="c.id" :value="c.id">
+                    {{ c.name }} {{ c.phone ? `(${c.phone})` : '' }}
+                  </option>
+                </select>
+              </div>
+              
+              <!-- Loyalty Status -->
+              <div v-if="applicableLoyaltyProgram" class="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <div class="flex items-center gap-2 mb-1">
+                  <Star class="w-4 h-4 text-blue-600 fill-current" />
+                  <span class="text-sm font-semibold text-blue-900">{{ applicableLoyaltyProgram.name }}</span>
+                </div>
+                <div class="text-xs text-blue-800">
+                  <span v-if="isPointsLoading">Loading points...</span>
+                  <span v-else>Available Points: <strong class="text-sm">{{ customerPointsBalance }}</strong></span>
+                </div>
+                
+                <div v-if="maxRedeemableBlocks > 0" class="mt-3 pt-3 border-t border-blue-200">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      v-model="redeemPoints"
+                      class="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    >
+                    <span class="text-sm text-blue-900">Apply points discount</span>
+                  </label>
+                </div>
+              </div>
+            </div>
             
             <div class="flex-1 overflow-y-auto -mx-2 px-2 space-y-4 mb-6">
               <div v-for="item in cart" :key="item.productId" class="flex justify-between items-start text-sm">
@@ -130,8 +225,10 @@ const formatCurrency = (val: number) => {
                 <p class="font-bold">{{ formatCurrency(total) }}</p>
               </div>
               <div class="flex justify-between text-sm text-gray-600">
-                <p>Discount</p>
-                <p class="font-bold text-gray-400">Rp 0</p>
+                <p>Loyalty Discount</p>
+                <p class="font-bold" :class="loyaltyDiscountAmount > 0 ? 'text-green-600' : 'text-gray-400'">
+                  -{{ formatCurrency(loyaltyDiscountAmount) }}
+                </p>
               </div>
               <div class="flex justify-between text-sm text-gray-600">
                 <p>Tax (0%)</p>
@@ -139,7 +236,7 @@ const formatCurrency = (val: number) => {
               </div>
               <div class="flex justify-between items-end border-t border-gray-200 pt-4">
                 <p class="text-base font-bold text-gray-900">Total</p>
-                <p class="text-2xl font-black text-gray-900">{{ formatCurrency(total) }}</p>
+                <p class="text-2xl font-black text-gray-900">{{ formatCurrency(finalTotal) }}</p>
               </div>
             </div>
           </div>
@@ -167,24 +264,24 @@ const formatCurrency = (val: number) => {
             </div>
             
             <!-- Dynamic Payment Component -->
-            <div class="flex-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-6">
+            <div class="flex-1 overflow-y-auto min-h-0 relative">
               <PaymentCash 
                 v-if="selectedMethod === 'Cash'" 
-                :total="total" 
-                @update:is-valid="handlePaymentValidation"
-                @update:payment-data="handlePaymentData"
+                :total="finalTotal" 
+                @valid="handlePaymentValidation"
+                @data="handlePaymentData"
               />
               <PaymentCard 
                 v-else-if="selectedMethod === 'Card'" 
-                :total="total" 
-                @update:is-valid="handlePaymentValidation"
-                @update:payment-data="handlePaymentData"
+                :total="finalTotal" 
+                @valid="handlePaymentValidation"
+                @data="handlePaymentData"
               />
               <PaymentQris 
                 v-else-if="selectedMethod === 'QRIS'" 
-                :total="total" 
-                @update:is-valid="handlePaymentValidation"
-                @update:payment-data="handlePaymentData"
+                :total="finalTotal" 
+                @valid="handlePaymentValidation"
+                @data="handlePaymentData"
               />
             </div>
             

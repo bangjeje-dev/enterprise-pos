@@ -97,6 +97,41 @@ const router = createRouter({
           path: 'sales/:id',
           name: 'sales-detail',
           component: () => import('@/views/sales/SalesDetailView.vue')
+        },
+        {
+          path: 'crm/customers',
+          name: 'customers',
+          component: () => import('@/views/crm/CustomerListView.vue')
+        },
+        {
+          path: 'crm/customers/new',
+          name: 'customer-new',
+          component: () => import('@/views/crm/CustomerFormView.vue')
+        },
+        {
+          path: 'crm/customers/:id',
+          name: 'customer-edit',
+          component: () => import('@/views/crm/CustomerFormView.vue')
+        },
+        {
+          path: 'crm/loyalty',
+          name: 'loyalty',
+          component: () => import('@/views/crm/LoyaltyProgramListView.vue')
+        },
+        {
+          path: 'crm/loyalty/new',
+          name: 'loyalty-new',
+          component: () => import('@/views/crm/LoyaltyProgramFormView.vue')
+        },
+        {
+          path: 'crm/loyalty/:id',
+          name: 'loyalty-edit',
+          component: () => import('@/views/crm/LoyaltyProgramFormView.vue')
+        },
+        {
+          path: 'crm/loyalty/:id/detail',
+          name: 'loyalty-detail',
+          component: () => import('@/views/crm/LoyaltyProgramDetailView.vue')
         }
       ]
     },

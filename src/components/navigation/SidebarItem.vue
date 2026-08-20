@@ -59,12 +59,12 @@ if (isActive.value && props.item.children) {
       </button>
       
       <!-- Submenu -->
-      <ul v-show="isExpanded && !isCollapsed" class="py-1 mt-1 space-y-1 relative before:absolute before:left-5 before:top-0 before:bottom-2 before:w-px before:bg-gray-200">
+      <ul v-show="isExpanded && !isCollapsed" class="py-1 mt-1 space-y-1 relative before:absolute before:left-5 before:top-1 before:bottom-1 before:w-px before:bg-gray-200">
         <li v-for="child in item.children" :key="child.name">
           <router-link 
             :to="child.path || '#'" 
             class="flex items-center p-2 pl-11 w-full text-sm font-medium text-gray-600 transition-colors duration-200 rounded-lg hover:text-gray-900 hover:bg-gray-50"
-            :class="{ 'text-blue-700 bg-blue-50/50 font-semibold before:absolute before:left-5 before:w-px before:h-full before:bg-blue-600': route.path === child.path }"
+            :class="{ 'text-blue-700 bg-blue-50/50 font-semibold before:absolute before:left-5 before:w-px before:top-1 before:bottom-1 before:bg-blue-600': route.path === child.path }"
           >
             {{ child.name }}
           </router-link>

@@ -92,7 +92,7 @@ const handleSave = async () => {
   } else {
     await store.addProduct({
       ...formData.value,
-      id: crypto.randomUUID(),
+      id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     } as Product)

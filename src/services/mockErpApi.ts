@@ -71,6 +71,45 @@ export interface ModifierGroup {
   updatedAt: string
 }
 
+// Types from CRM domain
+export interface LoyaltyProgram {
+  id: string
+  name: string
+  description?: string
+  status: 'Active' | 'Inactive'
+  earnRateAmount: number
+  earnRatePoints: number
+  redeemRatePoints: number
+  redeemRateAmount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PointsTransaction {
+  id: string
+  customerId: string
+  programId: string
+  salesTransactionId?: string
+  type: 'EARN' | 'REDEEM' | 'ADJUST' | 'EXPIRE'
+  points: number
+  amountProcessed?: number
+  reference: string
+  createdAt: string
+}
+
+export interface Customer {
+  id: string
+  customerCode: string
+  name: string
+  phone?: string
+  email?: string
+  address?: string
+  status: 'Active' | 'Inactive'
+  loyaltyProgramId?: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Types from Inventory domain
 export interface Location {
   id: string
@@ -163,6 +202,12 @@ export interface SalesTransaction {
   id: string
   transactionNumber: string
   locationId: string
+  customerId?: string
+  customerNameSnapshot?: string
+  loyaltyProgramIdSnapshot?: string
+  loyaltyEarnedPoints?: number
+  loyaltyRedeemedPoints?: number
+  loyaltyDiscountAmount?: number
   status: 'Draft' | 'Completed' | 'Voided'
   items: SalesTransactionItem[]
   subtotal: number
@@ -227,6 +272,58 @@ let modifierGroups: ModifierGroup[] = [
       { id: 'opt-2-2', name: 'Grass Jelly', priceAdjustment: 4000, status: 'Active' },
       { id: 'opt-2-3', name: 'Cheese Foam', priceAdjustment: 7000, status: 'Active' }
     ]
+  }
+]
+
+let loyaltyPrograms: LoyaltyProgram[] = [
+  {
+    id: 'lp-1',
+    name: 'Regular Customer',
+    description: 'Earn 1 point for every Rp10,000 spent.',
+    status: 'Active',
+    earnRateAmount: 10000,
+    earnRatePoints: 1,
+    redeemRatePoints: 100,
+    redeemRateAmount: 10000,
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  }
+]
+
+let pointsTransactions: PointsTransaction[] = [
+  {
+    id: 'pt-1',
+    customerId: 'cust-1',
+    programId: 'lp-1',
+    type: 'EARN',
+    points: 50,
+    amountProcessed: 500000,
+    reference: 'Initial Balance',
+    createdAt: '2026-08-01T08:00:00Z'
+  }
+]
+
+let customers: Customer[] = [
+  {
+    id: 'cust-1',
+    customerCode: 'CUS-000001',
+    name: 'Budi Santoso',
+    phone: '081234567890',
+    email: 'budi@example.com',
+    address: 'Jl. Sudirman No. 1, Jakarta',
+    status: 'Active',
+    loyaltyProgramId: 'lp-1',
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: 'cust-2',
+    customerCode: 'CUS-000002',
+    name: 'Siti Aminah',
+    phone: '085678901234',
+    status: 'Active',
+    createdAt: '2026-08-05T10:30:00Z',
+    updatedAt: '2026-08-05T10:30:00Z'
   }
 ]
 
@@ -489,7 +586,7 @@ const STORAGE_KEY = 'enterprise_pos_db'
 function loadDb() {
   if (typeof window === 'undefined' || !window.localStorage) return
   
-  const data = localStorage.getItem(STORAGE_KEY)
+  const data = window.localStorage.getItem(STORAGE_KEY)
   if (data) {
     try {
       const parsed = JSON.parse(data)
@@ -503,6 +600,9 @@ function loadDb() {
       if (parsed.stockAdjustments) stockAdjustments = parsed.stockAdjustments
       if (parsed.salesTransactions) salesTransactions = parsed.salesTransactions
       if (parsed.salesCounter) salesCounter = parsed.salesCounter
+      if (parsed.loyaltyPrograms) loyaltyPrograms = parsed.loyaltyPrograms
+      if (parsed.pointsTransactions) pointsTransactions = parsed.pointsTransactions
+      if (parsed.customers) customers = parsed.customers
     } catch (e) {
       console.error('Failed to load mock DB from localStorage:', e)
     }
@@ -512,19 +612,27 @@ function loadDb() {
 function saveDb() {
   if (typeof window === 'undefined' || !window.localStorage) return
   
-  const data = {
-    categories,
-    modifierGroups,
-    products,
-    locations,
-    inventoryBalances,
-    recentMovements,
-    stockTransfers,
-    stockAdjustments,
-    salesTransactions,
-    salesCounter
+  try {
+    const data = {
+      categories,
+      modifierGroups,
+      products,
+      locations,
+      inventoryBalances,
+      recentMovements,
+      stockTransfers,
+      stockAdjustments,
+      salesTransactions,
+      salesCounter,
+      loyaltyPrograms,
+      pointsTransactions,
+      customers
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  } catch (e) {
+    console.error('[mockErpApi] saveDb failed:', e)
+    throw e
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
 }
 
 // Load DB immediately upon script evaluation
@@ -1163,7 +1271,7 @@ const api = {
     return JSON.parse(JSON.stringify(salesTransactions))
   },
 
-  async createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number }[] }): Promise<SalesTransaction> {
+  async createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS' | '', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[], customerId?: string, redeemPoints?: boolean }): Promise<SalesTransaction> {
     await delay()
     
     // 1. Validate locationId
@@ -1222,10 +1330,53 @@ const api = {
       })
     }
 
-    // Calculate final totals (Simplified tax/discount for Phase 1)
-    const discount = 0
-    const tax = totalSubtotal * 0.11 // 11% standard tax
+    // Customer & Loyalty Setup
+    let discount = 0
+    let loyaltyDiscountAmount = 0
+    let loyaltyRedeemedPoints = 0
+    let loyaltyProgramIdSnapshot: string | undefined = undefined
+    let customerNameSnapshot: string | undefined = undefined
+
+    const customer = payload.customerId ? customers.find(c => c.id === payload.customerId) : undefined
+    let loyaltyProgram: LoyaltyProgram | undefined = undefined
+
+    if (customer) {
+      customerNameSnapshot = customer.name
+      if (customer.loyaltyProgramId) {
+        loyaltyProgram = loyaltyPrograms.find(p => p.id === customer.loyaltyProgramId && p.status === 'Active')
+      }
+    }
+
+    if (loyaltyProgram && payload.redeemPoints) {
+      const balance = pointsTransactions
+        .filter(pt => pt.customerId === customer!.id)
+        .reduce((sum, pt) => sum + pt.points, 0)
+      
+      if (balance >= loyaltyProgram.redeemRatePoints) {
+        const blocks = Math.floor(balance / loyaltyProgram.redeemRatePoints)
+        if (blocks > 0) {
+           const neededBlocks = Math.ceil(totalSubtotal / loyaltyProgram.redeemRateAmount)
+           const actualBlocks = Math.min(blocks, neededBlocks)
+           loyaltyRedeemedPoints = actualBlocks * loyaltyProgram.redeemRatePoints
+           loyaltyDiscountAmount = actualBlocks * loyaltyProgram.redeemRateAmount
+           
+           if (loyaltyDiscountAmount > totalSubtotal) {
+              loyaltyDiscountAmount = totalSubtotal
+           }
+           discount += loyaltyDiscountAmount
+           loyaltyProgramIdSnapshot = loyaltyProgram.id
+        }
+      }
+    }
+
+    const tax = (totalSubtotal - discount) * 0.11 // 11% standard tax
     const grandTotal = totalSubtotal - discount + tax
+
+    let loyaltyEarnedPoints = 0
+    if (loyaltyProgram) {
+      loyaltyEarnedPoints = Math.floor(grandTotal / loyaltyProgram.earnRateAmount) * loyaltyProgram.earnRatePoints
+      if (!loyaltyProgramIdSnapshot) loyaltyProgramIdSnapshot = loyaltyProgram.id
+    }
 
     const saleId = `SALE-${salesCounter.toString().padStart(6, '0')}`
     salesCounter++
@@ -1234,6 +1385,12 @@ const api = {
       id: saleId,
       transactionNumber: saleId,
       locationId: payload.locationId,
+      customerId: customer?.id,
+      customerNameSnapshot: customerNameSnapshot,
+      loyaltyProgramIdSnapshot: loyaltyProgramIdSnapshot,
+      loyaltyEarnedPoints: loyaltyEarnedPoints,
+      loyaltyRedeemedPoints: loyaltyRedeemedPoints,
+      loyaltyDiscountAmount: loyaltyDiscountAmount,
       status: 'Completed',
       items: validatedItems,
       subtotal: totalSubtotal,
@@ -1241,11 +1398,39 @@ const api = {
       tax: tax,
       grandTotal: grandTotal,
       paymentStatus: 'Paid',
-      paymentMethod: payload.paymentMethod,
+      paymentMethod: payload.paymentMethod as any,
       amountReceived: payload.amountReceived,
       changeAmount: payload.changeAmount,
       createdAt: new Date().toISOString(),
       completedAt: new Date().toISOString()
+    }
+
+    if (loyaltyRedeemedPoints > 0 && customer) {
+      pointsTransactions.unshift({
+        id: `pt-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        customerId: customer.id,
+        programId: loyaltyProgramIdSnapshot!,
+        salesTransactionId: newSale.id,
+        type: 'REDEEM',
+        points: -loyaltyRedeemedPoints,
+        amountProcessed: loyaltyDiscountAmount,
+        reference: `Redemption for Sale ${newSale.transactionNumber}`,
+        createdAt: new Date().toISOString()
+      })
+    }
+
+    if (loyaltyEarnedPoints > 0 && customer) {
+      pointsTransactions.unshift({
+        id: `pt-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        customerId: customer.id,
+        programId: loyaltyProgramIdSnapshot!,
+        salesTransactionId: newSale.id,
+        type: 'EARN',
+        points: loyaltyEarnedPoints,
+        amountProcessed: grandTotal,
+        reference: `Earned from Sale ${newSale.transactionNumber}`,
+        createdAt: new Date().toISOString()
+      })
     }
 
     // Mutate inventory and create StockMovements
@@ -1345,6 +1530,138 @@ const api = {
     transaction.authorizedBy = authContext.authorizedBy
     transaction.voidReason = authContext.reason
     return transaction
+  },
+
+  // CRM -> Customer API
+  async getCustomers(): Promise<Customer[]> {
+    await delay(300)
+    return [...customers]
+  },
+
+  async getCustomerById(id: string): Promise<Customer> {
+    await delay(200)
+    const customer = customers.find(c => c.id === id)
+    if (!customer) throw new Error('Customer not found')
+    return { ...customer }
+  },
+
+  async createCustomer(customer: Omit<Customer, 'id' | 'customerCode' | 'createdAt' | 'updatedAt'>): Promise<Customer> {
+    await delay(500)
+    
+    // Validate uniqueness of phone and email if provided
+    if (customer.phone && customers.some(c => c.phone === customer.phone)) {
+      throw new Error(`Phone number ${customer.phone} is already used by another customer`)
+    }
+    if (customer.email && customers.some(c => c.email && c.email.toLowerCase() === customer.email?.toLowerCase())) {
+      throw new Error(`Email ${customer.email} is already used by another customer`)
+    }
+
+    // Auto-generate CUS-XXXXXX
+    let maxNum = 0
+    customers.forEach(c => {
+      const match = c.customerCode.match(/^CUS-(\d+)$/)
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10)
+        if (num > maxNum) maxNum = num
+      }
+    })
+    const nextNum = maxNum + 1
+    const newCode = `CUS-${nextNum.toString().padStart(6, '0')}`
+
+    const newCustomer: Customer = {
+      ...customer,
+      id: `cust-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      customerCode: newCode,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    customers.push(newCustomer)
+    return { ...newCustomer }
+  },
+
+  async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer> {
+    await delay(500)
+    const idx = customers.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error('Customer not found')
+
+    if (updates.phone && customers.some(c => c.id !== id && c.phone === updates.phone)) {
+      throw new Error(`Phone number ${updates.phone} is already used by another customer`)
+    }
+    if (updates.email && customers.some(c => c.id !== id && c.email && c.email.toLowerCase() === updates.email?.toLowerCase())) {
+      throw new Error(`Email ${updates.email} is already used by another customer`)
+    }
+
+    const currentCustomer = customers[idx]!
+    customers[idx] = {
+      ...currentCustomer,
+      ...updates,
+      id: currentCustomer.id,
+      customerCode: currentCustomer.customerCode,
+      createdAt: currentCustomer.createdAt,
+      updatedAt: new Date().toISOString()
+    } as Customer
+    return { ...customers[idx]! }
+  },
+
+  async deleteCustomer(id: string): Promise<void> {
+    await delay(500)
+    const idx = customers.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error('Customer not found')
+    
+    const hasSales = salesTransactions.some(s => s.customerId === id)
+    if (hasSales) {
+      throw new Error('Cannot delete customer with existing sales transactions. Please deactivate instead.')
+    }
+    
+    customers.splice(idx, 1)
+  },
+
+  // CRM -> Loyalty Program API
+  async getLoyaltyPrograms(): Promise<LoyaltyProgram[]> {
+    await delay(300)
+    return [...loyaltyPrograms]
+  },
+
+  async getLoyaltyProgramById(id: string): Promise<LoyaltyProgram> {
+    await delay(200)
+    const program = loyaltyPrograms.find(p => p.id === id)
+    if (!program) throw new Error('Loyalty Program not found')
+    return { ...program }
+  },
+
+  async createLoyaltyProgram(program: Omit<LoyaltyProgram, 'id' | 'createdAt' | 'updatedAt'>): Promise<LoyaltyProgram> {
+    await delay(500)
+    const newProgram: LoyaltyProgram = {
+      ...program,
+      id: `lp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    loyaltyPrograms.push(newProgram)
+    return { ...newProgram }
+  },
+
+  async updateLoyaltyProgram(id: string, updates: Partial<LoyaltyProgram>): Promise<LoyaltyProgram> {
+    await delay(500)
+    const idx = loyaltyPrograms.findIndex(p => p.id === id)
+    if (idx === -1) throw new Error('Loyalty Program not found')
+    
+    const currentProgram = loyaltyPrograms[idx]!
+    loyaltyPrograms[idx] = {
+      ...currentProgram,
+      ...updates,
+      id: currentProgram.id,
+      createdAt: currentProgram.createdAt,
+      updatedAt: new Date().toISOString()
+    } as LoyaltyProgram
+    
+    return { ...loyaltyPrograms[idx]! }
+  },
+
+  async getPointsTransactionsByCustomer(customerId: string): Promise<PointsTransaction[]> {
+    await delay(200)
+    return pointsTransactions.filter(pt => pt.customerId === customerId)
   }
 }
 
@@ -1353,11 +1670,16 @@ export const mockErpApi = new Proxy(api, {
     const origMethod = target[prop as keyof typeof api]
     if (typeof origMethod === 'function') {
       return async function (this: any, ...args: any[]) {
-        const result = await (origMethod as Function).apply(this, args)
-        if (typeof prop === 'string' && !prop.startsWith('get')) {
-          saveDb()
+        try {
+          const result = await (origMethod as Function).apply(this, args)
+          if (typeof prop === 'string' && !prop.startsWith('get')) {
+            saveDb()
+          }
+          return result
+        } catch (err) {
+          console.error(`[mockErpApi] Error executing ${String(prop)}:`, err)
+          throw err
         }
-        return result
       }
     }
     return Reflect.get(target, prop, receiver)
