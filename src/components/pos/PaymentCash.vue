@@ -74,71 +74,71 @@ const formatCurrency = (val: number) => {
   <div class="space-y-6">
     <div>
       <label class="block text-sm font-medium text-gray-700 mb-2">Amount Received</label>
-      <div class="relative">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span class="text-gray-500 font-bold">Rp</span>
+      <div class="relative rounded-xl shadow-sm border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none bg-gray-50 border-r border-gray-200">
+          <span class="text-gray-500 font-bold px-2">Rp</span>
         </div>
         <input 
           type="text" 
           v-model="amountInput"
           @input="handleInput"
-          class="block w-full pl-10 pr-4 py-3 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-right text-lg font-bold"
+          class="block w-full pl-16 pr-4 py-4 bg-white border-0 text-right text-2xl font-black text-gray-900 focus:ring-0 placeholder-gray-300"
           placeholder="0"
         />
       </div>
     </div>
     
-    <div class="flex flex-wrap gap-2">
+    <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
       <button 
         type="button" 
         @click="exactAmount"
-        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 flex-1"
+        class="px-2 py-3 border border-gray-200 rounded-lg text-sm font-semibold bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
       >
         Exact
       </button>
       <button 
         type="button" 
         @click="addAmount(10000)"
-        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 flex-1"
+        class="px-2 py-3 border border-gray-200 rounded-lg text-sm font-semibold bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
       >
         +10k
       </button>
       <button 
         type="button" 
         @click="addAmount(20000)"
-        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 flex-1"
+        class="px-2 py-3 border border-gray-200 rounded-lg text-sm font-semibold bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
       >
         +20k
       </button>
       <button 
         type="button" 
         @click="addAmount(50000)"
-        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 flex-1"
+        class="px-2 py-3 border border-gray-200 rounded-lg text-sm font-semibold bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
       >
         +50k
       </button>
       <button 
         type="button" 
         @click="addAmount(100000)"
-        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 flex-1"
+        class="px-2 py-3 border border-gray-200 rounded-lg text-sm font-semibold bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
       >
         +100k
       </button>
     </div>
 
-    <div class="pt-4 border-t border-gray-200">
-      <div class="flex justify-between items-center">
-        <span class="text-gray-600 font-medium">Change</span>
-        <span 
-          class="text-2xl font-bold" 
-          :class="amountReceived < total ? 'text-gray-300' : 'text-green-600'"
-        >
-          {{ formatCurrency(amountReceived < total ? 0 : changeAmount) }}
-        </span>
+    <div class="mt-6 p-4 rounded-xl flex items-center justify-between border" :class="amountReceived < total ? 'bg-gray-50 border-gray-200' : 'bg-emerald-50 border-emerald-200'">
+      <div class="flex flex-col">
+        <span class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Change</span>
+        <p v-if="amountReceived > 0 && amountReceived < total" class="text-xs text-red-500 font-medium">
+          Insufficient (Need {{ formatCurrency(total - amountReceived) }} more)
+        </p>
       </div>
-      <p v-if="amountReceived > 0 && amountReceived < total" class="text-sm text-red-500 mt-2 text-right">
-        Insufficient amount (Need {{ formatCurrency(total - amountReceived) }} more)
-      </p>
+      <span 
+        class="text-3xl font-black tracking-tight" 
+        :class="amountReceived < total ? 'text-gray-400' : 'text-emerald-600'"
+      >
+        {{ formatCurrency(amountReceived < total ? 0 : changeAmount) }}
+      </span>
     </div>
   </div>
 </template>

@@ -69,6 +69,38 @@ const selectedCustomer = computed(() => {
   return customerStore.customers.find(c => c.id === selectedCustomerId.value)
 })
 
+const phoneSearchQuery = ref('')
+
+const searchResults = computed(() => {
+  if (!phoneSearchQuery.value) return []
+  const query = phoneSearchQuery.value.replace(/\D/g, '')
+  if (!query) return []
+  
+  return customerStore.activeCustomers.filter(c => 
+    c.phone && c.phone.replace(/\D/g, '').includes(query)
+  ).slice(0, 5)
+})
+
+const selectCustomer = (customer: any) => {
+  selectedCustomerId.value = customer.id
+  phoneSearchQuery.value = ''
+}
+
+const clearCustomer = () => {
+  selectedCustomerId.value = ''
+  phoneSearchQuery.value = ''
+}
+
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen) {
+    clearCustomer()
+    selectedMethod.value = 'Cash'
+    isPaymentValid.value = false
+    paymentData.value = { amountReceived: 0, changeAmount: 0 }
+    checkoutError.value = null
+  }
+})
+
 const applicableLoyaltyProgram = computed(() => {
   if (!selectedCustomer.value?.loyaltyProgramId) return null
   return loyaltyStore.activePrograms.find(p => p.id === selectedCustomer.value!.loyaltyProgramId)
@@ -164,23 +196,48 @@ const formatCurrency = (val: number) => {
         
         <div class="flex flex-col md:flex-row h-full max-h-[90vh]">
           <!-- Order Summary Sidebar -->
-          <div class="w-full md:w-1/3 bg-white border-r border-gray-200 flex flex-col p-6 overflow-y-auto">
+          <div class="w-full md:w-[400px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col p-6 lg:p-8 overflow-y-auto">
             <h2 class="text-lg font-bold text-gray-900 mb-4">Customer & Order</h2>
 
             <!-- Customer Selection -->
             <div class="mb-6 space-y-2">
-              <label class="block text-sm font-medium text-gray-700">Select Customer</label>
-              <div class="relative">
-                <User class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select 
-                  v-model="selectedCustomerId"
-                  class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              <label class="block text-sm font-medium text-gray-700">Customer</label>
+              
+              <div v-if="selectedCustomer" class="p-3 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center">
+                <div>
+                  <p class="font-bold text-gray-900">{{ selectedCustomer.name }}</p>
+                  <p class="text-xs text-gray-500">{{ selectedCustomer.phone }}</p>
+                </div>
+                <button @click="clearCustomer" class="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-200" title="Clear selection">
+                  <X class="w-4 h-4" />
+                </button>
+              </div>
+
+              <div v-else class="relative">
+                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  v-model="phoneSearchQuery"
+                  type="text"
+                  placeholder="Search customer by phone number..."
+                  class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Walk-in Customer</option>
-                  <option v-for="c in customerStore.activeCustomers" :key="c.id" :value="c.id">
-                    {{ c.name }} {{ c.phone ? `(${c.phone})` : '' }}
-                  </option>
-                </select>
+                
+                <!-- Autocomplete Dropdown -->
+                <div v-if="phoneSearchQuery && searchResults.length > 0" class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  <button 
+                    v-for="c in searchResults" 
+                    :key="c.id"
+                    @click="selectCustomer(c)"
+                    class="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                  >
+                    <p class="font-medium text-gray-900 text-sm">{{ c.name }}</p>
+                    <p class="text-xs text-gray-500">{{ c.phone }}</p>
+                  </button>
+                </div>
+                
+                <div v-if="phoneSearchQuery && searchResults.length === 0" class="mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                  Customer not found. Transaction will proceed as walk-in.
+                </div>
               </div>
               
               <!-- Loyalty Status -->
@@ -220,29 +277,29 @@ const formatCurrency = (val: number) => {
             </div>
             
             <div class="border-t border-gray-200 pt-4 space-y-3 mt-auto">
-              <div class="flex justify-between text-sm text-gray-600">
+              <div class="flex justify-between items-center text-sm text-gray-600">
                 <p>Subtotal</p>
-                <p class="font-bold">{{ formatCurrency(total) }}</p>
+                <p class="font-bold text-gray-900 text-right">{{ formatCurrency(total) }}</p>
               </div>
-              <div class="flex justify-between text-sm text-gray-600">
+              <div class="flex justify-between items-center text-sm text-gray-600">
                 <p>Loyalty Discount</p>
-                <p class="font-bold" :class="loyaltyDiscountAmount > 0 ? 'text-green-600' : 'text-gray-400'">
+                <p class="font-bold text-right" :class="loyaltyDiscountAmount > 0 ? 'text-green-600' : 'text-gray-400'">
                   -{{ formatCurrency(loyaltyDiscountAmount) }}
                 </p>
               </div>
-              <div class="flex justify-between text-sm text-gray-600">
+              <div class="flex justify-between items-center text-sm text-gray-600">
                 <p>Tax (0%)</p>
-                <p class="font-bold text-gray-400">Rp 0</p>
+                <p class="font-bold text-gray-400 text-right">Rp 0</p>
               </div>
-              <div class="flex justify-between items-end border-t border-gray-200 pt-4">
-                <p class="text-base font-bold text-gray-900">Total</p>
-                <p class="text-2xl font-black text-gray-900">{{ formatCurrency(finalTotal) }}</p>
+              <div class="flex justify-between items-end border-t border-gray-200 pt-5 mt-2">
+                <p class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Total</p>
+                <p class="text-3xl font-black text-blue-600 text-right leading-none">{{ formatCurrency(finalTotal) }}</p>
               </div>
             </div>
           </div>
 
           <!-- Payment Section -->
-          <div class="w-full md:w-2/3 p-6 flex flex-col bg-gray-50">
+          <div class="flex-1 p-6 lg:p-8 flex flex-col bg-gray-50 relative">
             <h2 class="text-lg font-bold text-gray-900 mb-6">Payment Method</h2>
             
             <!-- Payment Methods Tabs -->
@@ -268,20 +325,20 @@ const formatCurrency = (val: number) => {
               <PaymentCash 
                 v-if="selectedMethod === 'Cash'" 
                 :total="finalTotal" 
-                @valid="handlePaymentValidation"
-                @data="handlePaymentData"
+                @update:isValid="handlePaymentValidation"
+                @update:paymentData="handlePaymentData"
               />
               <PaymentCard 
                 v-else-if="selectedMethod === 'Card'" 
                 :total="finalTotal" 
-                @valid="handlePaymentValidation"
-                @data="handlePaymentData"
+                @update:isValid="handlePaymentValidation"
+                @update:paymentData="handlePaymentData"
               />
               <PaymentQris 
                 v-else-if="selectedMethod === 'QRIS'" 
                 :total="finalTotal" 
-                @valid="handlePaymentValidation"
-                @data="handlePaymentData"
+                @update:isValid="handlePaymentValidation"
+                @update:paymentData="handlePaymentData"
               />
             </div>
             
@@ -289,10 +346,10 @@ const formatCurrency = (val: number) => {
               {{ checkoutError }}
             </div>
             
-            <div class="flex space-x-4 mt-auto">
+            <div class="flex space-x-4 mt-auto pt-6 border-t border-gray-200">
               <button 
                 type="button"
-                class="flex-1 py-4 px-4 border border-gray-300 rounded-xl text-base font-bold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                class="flex-1 py-4 px-4 border border-gray-300 rounded-xl text-base font-bold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center transition-colors shadow-sm"
                 @click="emit('close')"
                 :disabled="isSubmitting"
               >
@@ -300,11 +357,11 @@ const formatCurrency = (val: number) => {
               </button>
               <button 
                 type="button"
-                class="flex-1 py-4 px-4 border border-transparent rounded-xl text-base font-bold text-white transition-colors"
+                class="flex-[2] py-4 px-4 border border-transparent rounded-xl text-base font-bold text-white transition-colors flex items-center justify-center shadow-sm"
                 :class="[
                   (!isPaymentValid || isSubmitting)
                     ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
                 ]"
                 @click="completePayment"
                 :disabled="!isPaymentValid || isSubmitting"
