@@ -176,24 +176,6 @@ const handleVoid = async () => {
           </p>
         </div>
       </div>
-      
-      <div v-if="transaction" class="flex items-center space-x-3">
-        <button 
-          v-if="transaction.status === 'Completed'"
-          @click="isVoidModalOpen = true"
-          class="inline-flex items-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-        >
-          <XCircle class="w-4 h-4 mr-2" />
-          Void Transaction
-        </button>
-        <button 
-          @click="isReceiptModalOpen = true"
-          class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <Printer class="w-4 h-4 mr-2" />
-          Reprint Receipt
-        </button>
-      </div>
     </div>
 
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
@@ -334,6 +316,30 @@ const handleVoid = async () => {
 
       <!-- Right Sidebar Area -->
       <div class="w-full lg:w-96 flex-shrink-0 flex flex-col space-y-6">
+        
+        <!-- Actions Card -->
+        <div v-if="transaction" class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-lg font-bold text-gray-900">Actions</h3>
+          </div>
+          <div class="p-6 space-y-3">
+            <button 
+              @click="isReceiptModalOpen = true"
+              class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <Printer class="w-4 h-4 mr-2" />
+              Reprint Receipt
+            </button>
+            <button 
+              v-if="transaction.status === 'Completed'"
+              @click="isVoidModalOpen = true"
+              class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-red-300 shadow-sm text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+            >
+              <XCircle class="w-4 h-4 mr-2" />
+              Void Transaction
+            </button>
+          </div>
+        </div>
         
         <div v-if="transaction.status === 'Voided'" class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3">
           <XCircle class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
