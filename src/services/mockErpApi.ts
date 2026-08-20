@@ -90,7 +90,7 @@ export interface PointsTransaction {
   customerId: string
   programId: string
   salesTransactionId?: string
-  type: 'EARN' | 'REDEEM' | 'ADJUST' | 'EXPIRE'
+  type: 'EARN' | 'REDEEM' | 'ADJUST' | 'EXPIRE' | 'ADJUST-UP' | 'ADJUST-DOWN'
   points: number
   amountProcessed?: number
   reference: string
@@ -128,7 +128,7 @@ export interface InventoryBalance {
 export interface StockMovement {
   id: string
   date: string
-  type: 'Sale' | 'Adjustment' | 'Transfer In' | 'Transfer Out' | 'Receipt' | 'Transfer Return' | 'Void'
+  type: 'Sale' | 'Adjustment' | 'Transfer In' | 'Transfer Out' | 'Receipt' | 'Transfer Return' | 'Void' | 'Return'
   productId: string
   locationId: string
   qty: number
@@ -196,6 +196,7 @@ export interface SalesTransactionItem {
     optionName: string
     priceAdjustment: number
   }[]
+  returnedQuantity?: number
 }
 
 export interface SalesTransaction {
@@ -209,6 +210,7 @@ export interface SalesTransaction {
   loyaltyRedeemedPoints?: number
   loyaltyDiscountAmount?: number
   status: 'Draft' | 'Completed' | 'Voided'
+  returnStatus?: 'None' | 'Partial' | 'Full'
   items: SalesTransactionItem[]
   subtotal: number
   discount: number
@@ -223,6 +225,33 @@ export interface SalesTransaction {
   voidedAt?: string
   authorizedBy?: string
   voidReason?: string
+}
+
+export interface SalesReturnItem {
+  productId: string
+  productNameSnapshot: string
+  skuSnapshot: string
+  quantity: number
+  unitPrice: number
+  subtotal: number
+  reason?: string
+}
+
+export interface SalesReturn {
+  id: string
+  returnNumber: string
+  originalTransactionId: string
+  locationId: string
+  customerId?: string
+  status: 'Completed' | 'Draft'
+  items: SalesReturnItem[]
+  subtotal: number
+  taxReturned: number
+  totalRefundAmount: number
+  refundMethod: 'Cash' | 'Original Payment Method' | 'Store Credit'
+  reason: string
+  createdAt: string
+  processedBy?: string
 }
 
 export interface AuthorizationContext {
@@ -579,6 +608,7 @@ let stockAdjustments: StockAdjustment[] = [
 ]
 
 let salesTransactions: SalesTransaction[] = []
+let salesReturns: SalesReturn[] = []
 let salesCounter = 1
 
 const STORAGE_KEY = 'enterprise_pos_db'
@@ -1269,6 +1299,159 @@ const api = {
   async getSalesTransactions(): Promise<SalesTransaction[]> {
     await delay()
     return JSON.parse(JSON.stringify(salesTransactions))
+  },
+
+  async getSalesReturns(): Promise<SalesReturn[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(salesReturns))
+  },
+
+  async createSalesReturn(payload: { originalTransactionId: string, locationId: string, customerId?: string, items: { productId: string, quantity: number, reason?: string }[], reason: string, refundMethod: 'Cash' | 'Original Payment Method' | 'Store Credit', processedBy?: string }): Promise<SalesReturn> {
+    await delay()
+
+    const originalTransaction = salesTransactions.find(t => t.id === payload.originalTransactionId)
+    if (!originalTransaction) throw new Error('Original Sales Transaction not found')
+
+    if (originalTransaction.status !== 'Completed') {
+      throw new Error('Only Completed transactions can be returned')
+    }
+
+    if (!payload.items || payload.items.length === 0) {
+      throw new Error('Return must have at least one item')
+    }
+
+    let returnSubtotal = 0
+    let totalDiscountAmountToReclaim = 0
+    const returnItems: SalesReturnItem[] = []
+
+    // Validate quantities and calculate totals
+    for (const returnItemPayload of payload.items) {
+      if (returnItemPayload.quantity <= 0) throw new Error('Return quantity must be greater than 0')
+
+      const originalItem = originalTransaction.items.find(i => i.productId === returnItemPayload.productId)
+      if (!originalItem) throw new Error(`Product ${returnItemPayload.productId} was not in the original transaction`)
+
+      const previouslyReturned = originalItem.returnedQuantity || 0
+      const returnableQty = originalItem.quantity - previouslyReturned
+
+      if (returnItemPayload.quantity > returnableQty) {
+        throw new Error(`Cannot return ${returnItemPayload.quantity} of ${originalItem.productNameSnapshot}. Only ${returnableQty} left.`)
+      }
+
+      const subtotal = returnItemPayload.quantity * originalItem.unitPrice
+      returnSubtotal += subtotal
+
+      // We also proportionally reclaim transaction-level discounts here (if we wanted to do strict item discounts we'd handle it).
+      // For this phase, the user requested transaction-level discount to be distributed proportionally.
+      // If the original subtotal was 200,000, and discount was 20,000, that's a 10% discount.
+      // 10% of this return item's subtotal will be the reclaimed discount.
+      const discountRatio = originalTransaction.discount / originalTransaction.subtotal
+      totalDiscountAmountToReclaim += subtotal * discountRatio
+
+      returnItems.push({
+        productId: originalItem.productId,
+        productNameSnapshot: originalItem.productNameSnapshot,
+        skuSnapshot: originalItem.skuSnapshot,
+        quantity: returnItemPayload.quantity,
+        unitPrice: originalItem.unitPrice,
+        subtotal: subtotal,
+        reason: returnItemPayload.reason
+      })
+    }
+
+    const totalRefundAmount = returnSubtotal - totalDiscountAmountToReclaim
+
+    // Process Inventory and Update original transaction
+    for (const item of returnItems) {
+      const originalItem = originalTransaction.items.find(i => i.productId === item.productId)!
+      originalItem.returnedQuantity = (originalItem.returnedQuantity || 0) + item.quantity
+
+      const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === payload.locationId)
+      if (balance) {
+        balance.currentStock += item.quantity
+      } else {
+        inventoryBalances.push({
+          id: `IB-${item.productId}-${payload.locationId}`,
+          productId: item.productId,
+          locationId: payload.locationId,
+          currentStock: item.quantity,
+          reservedStock: 0
+        })
+      }
+
+      recentMovements.unshift({
+        id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        date: new Date().toISOString(),
+        type: 'Return',
+        productId: item.productId,
+        locationId: payload.locationId,
+        qty: item.quantity,
+        balanceAfter: balance ? balance.currentStock : item.quantity,
+        user: payload.processedBy || 'System',
+        referenceId: `RET-${Date.now()}`
+      })
+    }
+
+    // Determine return status for original transaction
+    const allItemsFullyReturned = originalTransaction.items.every(i => (i.returnedQuantity || 0) === i.quantity)
+    const anyItemReturned = originalTransaction.items.some(i => (i.returnedQuantity || 0) > 0)
+    originalTransaction.returnStatus = allItemsFullyReturned ? 'Full' : (anyItemReturned ? 'Partial' : 'None')
+
+    // Loyalty implications
+    if (originalTransaction.customerId && (originalTransaction.loyaltyEarnedPoints! > 0 || originalTransaction.loyaltyRedeemedPoints! > 0)) {
+      const returnRatio = totalRefundAmount / (originalTransaction.grandTotal || 1) // prevent div by zero
+      
+      const loyaltyEarnedPointsToRevert = Math.floor((originalTransaction.loyaltyEarnedPoints || 0) * returnRatio)
+      const loyaltyRedeemedPointsToRefund = Math.floor((originalTransaction.loyaltyRedeemedPoints || 0) * returnRatio)
+
+      if (loyaltyEarnedPointsToRevert > 0) {
+        pointsTransactions.unshift({
+          id: `pt-${Date.now()}-rev-earn`,
+          customerId: originalTransaction.customerId,
+          programId: originalTransaction.loyaltyProgramIdSnapshot!,
+          salesTransactionId: originalTransaction.id,
+          type: 'ADJUST-DOWN',
+          points: -loyaltyEarnedPointsToRevert,
+          amountProcessed: 0,
+          reference: `Reversal of points for Return ${payload.originalTransactionId}`,
+          createdAt: new Date().toISOString()
+        })
+      }
+
+      if (loyaltyRedeemedPointsToRefund > 0) {
+        pointsTransactions.unshift({
+          id: `pt-${Date.now()}-ref-redeem`,
+          customerId: originalTransaction.customerId,
+          programId: originalTransaction.loyaltyProgramIdSnapshot!,
+          salesTransactionId: originalTransaction.id,
+          type: 'ADJUST-UP',
+          points: loyaltyRedeemedPointsToRefund,
+          amountProcessed: 0,
+          reference: `Refund of redeemed points for Return ${payload.originalTransactionId}`,
+          createdAt: new Date().toISOString()
+        })
+      }
+    }
+
+    const newReturn: SalesReturn = {
+      id: `RET-${Date.now()}`,
+      returnNumber: `RET-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+      originalTransactionId: payload.originalTransactionId,
+      locationId: payload.locationId,
+      customerId: payload.customerId,
+      status: 'Completed',
+      items: returnItems,
+      subtotal: returnSubtotal,
+      taxReturned: 0, // Simplified for this phase
+      totalRefundAmount: totalRefundAmount,
+      refundMethod: payload.refundMethod,
+      reason: payload.reason,
+      createdAt: new Date().toISOString(),
+      processedBy: payload.processedBy
+    }
+
+    salesReturns.unshift(newReturn)
+    return newReturn
   },
 
   async createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS' | '', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[], customerId?: string, redeemPoints?: boolean }): Promise<SalesTransaction> {

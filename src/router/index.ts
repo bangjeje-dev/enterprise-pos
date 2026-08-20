@@ -99,6 +99,21 @@ const router = createRouter({
           component: () => import('@/views/sales/SalesDetailView.vue')
         },
         {
+          path: 'sales/returns',
+          name: 'sales-returns',
+          component: () => import('@/views/sales/ReturnListView.vue')
+        },
+        {
+          path: 'sales/returns/:id',
+          name: 'sales-return-detail',
+          component: () => import('@/views/sales/ReturnDetailView.vue')
+        },
+        {
+          path: 'sales/:id/return',
+          name: 'sales-return-new',
+          component: () => import('@/views/sales/ReturnFormView.vue')
+        },
+        {
           path: 'crm/customers',
           name: 'customers',
           component: () => import('@/views/crm/CustomerListView.vue')

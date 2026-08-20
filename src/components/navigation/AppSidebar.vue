@@ -21,14 +21,13 @@ const navigation = [
     icon: LayoutDashboard
   },
   {
-    name: 'POS',
-    path: '/pos',
-    icon: ShoppingCart
-  },
-  {
-    name: 'Sales History',
-    path: '/sales',
-    icon: FileText
+    name: 'Sales',
+    icon: ShoppingCart,
+    children: [
+      { name: 'POS', path: '/pos' },
+      { name: 'Sales History', path: '/sales' },
+      { name: 'Returns', path: '/sales/returns' }
+    ]
   },
   {
     name: 'Catalog',
@@ -54,7 +53,7 @@ const navigation = [
     icon: Users,
     children: [
       { name: 'Customers', path: '/crm/customers' },
-      { name: 'Loyalty Program', path: '/crm/loyalty' },
+      // { name: 'Loyalty Program', path: '/crm/loyalty' },
     ]
   },
   {

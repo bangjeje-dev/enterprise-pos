@@ -13,8 +13,10 @@ import {
   User,
   CreditCard,
   Banknote,
-  QrCode
+  QrCode,
+  ArrowLeftRight
 } from 'lucide-vue-next'
+import { TEMPORARY_DEV_PIN } from '@/utils/constants'
 import ReceiptPreview from '@/components/pos/ReceiptPreview.vue'
 import type { SalesTransaction } from '@/services/mockErpApi'
 
@@ -114,8 +116,8 @@ const handleVoid = async () => {
   }
   
   // Mock Supervisor Authentication
-  if (supervisorPin.value !== '123456') {
-    voidError.value = 'Invalid Supervisor PIN. Authorization denied.'
+  if (supervisorPin.value !== TEMPORARY_DEV_PIN) {
+    voidError.value = 'Invalid PIN. Please try again.'
     return
   }
   
@@ -169,6 +171,12 @@ const handleVoid = async () => {
               <CheckCircle2 v-if="transaction.status === 'Completed'" class="w-3.5 h-3.5 mr-1" />
               <XCircle v-else class="w-3.5 h-3.5 mr-1" />
               {{ transaction.status }}
+            </span>
+            <span
+              v-if="transaction && transaction.returnStatus && transaction.returnStatus !== 'None'"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-orange-50 text-orange-700 border-orange-200"
+            >
+              {{ transaction.returnStatus === 'Full' ? 'Fully Returned' : 'Partially Returned' }}
             </span>
           </div>
           <p class="text-sm text-gray-500 mt-1" v-if="transaction">
@@ -331,7 +339,15 @@ const handleVoid = async () => {
               Reprint Receipt
             </button>
             <button 
-              v-if="transaction.status === 'Completed'"
+              v-if="transaction.status === 'Completed' && (!transaction.returnStatus || transaction.returnStatus !== 'Full')"
+              @click="router.push(`/sales/${transaction.id}/return`)"
+              class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-indigo-300 shadow-sm text-sm font-medium rounded-lg text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            >
+              <ArrowLeftRight class="w-4 h-4 mr-2" />
+              Return Items
+            </button>
+            <button 
+              v-if="transaction.status === 'Completed' && (!transaction.returnStatus || transaction.returnStatus === 'None')"
               @click="isVoidModalOpen = true"
               class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-red-300 shadow-sm text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
             >
@@ -486,7 +502,7 @@ const handleVoid = async () => {
                   
                   <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mt-4">
                     <h4 class="text-sm font-bold text-blue-900 mb-2">Supervisor Authorization Required</h4>
-                    <p class="text-xs text-blue-700 mb-3">Please enter Supervisor PIN to authorize this void. (Mock PIN: 123456)</p>
+                    <p class="text-xs text-blue-700 mb-3">Please enter Supervisor PIN to authorize this void. (Mock PIN: {{ TEMPORARY_DEV_PIN }})</p>
                     <label class="block text-sm font-medium text-blue-900 mb-1">Supervisor PIN <span class="text-red-500">*</span></label>
                     <input type="password" v-model="supervisorPin" class="block w-full border-blue-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Enter PIN" />
                   </div>
