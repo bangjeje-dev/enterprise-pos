@@ -11,6 +11,7 @@ import type { CartItemData, SelectedModifier } from '@/components/pos/PosCart.vu
 import CheckoutModal from '@/components/pos/CheckoutModal.vue'
 import ReceiptPreview from '@/components/pos/ReceiptPreview.vue'
 import ModifierSelectionModal from '@/components/pos/ModifierSelectionModal.vue'
+import CashierWorkspace from '@/components/pos/CashierWorkspace.vue'
 import type { SalesTransaction } from '@/services/mockErpApi'
 
 const productStore = useProductStore()
@@ -26,6 +27,8 @@ const activeCategory = ref('All')
 const viewMode = ref<'grid' | 'list'>('grid')
 const currentPage = ref(1)
 const itemsPerPage = 12
+
+const posMode = ref<'cashier' | 'catalog'>('cashier')
 
 const cartItems = ref<CartItemData[]>([])
 
@@ -211,9 +214,22 @@ const handleNewSale = () => {
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row h-full w-full bg-gray-50">
-    <!-- Left / Catalog Area -->
-    <div class="flex-1 flex flex-col min-w-0 bg-gray-50 border-r border-gray-200">
+  <div class="relative h-full w-full">
+    
+    <!-- Cashier Mode -->
+    <CashierWorkspace 
+      v-if="posMode === 'cashier'"
+      :cart="cartItems"
+      @add="handleAddToCart"
+      @update:quantity="handleUpdateQuantity"
+      @remove="handleRemoveFromCart"
+      @checkout="handleCheckoutClick"
+    />
+
+    <!-- Catalog Mode (Legacy) -->
+    <div v-else class="flex flex-col lg:flex-row h-full w-full bg-gray-50">
+      <!-- Left / Catalog Area -->
+      <div class="flex-1 flex flex-col min-w-0 bg-gray-50 border-r border-gray-200">
       
       <!-- Search and Category Toolbar -->
       <div class="flex-shrink-0 border-b border-gray-200 bg-white">
@@ -305,6 +321,7 @@ const handleNewSale = () => {
         @clear="cartItems = []"
       />
     </div>
+    </div>
 
     <!-- Modals -->
     <CheckoutModal 
@@ -330,5 +347,15 @@ const handleNewSale = () => {
       @close="isModifierModalOpen = false; selectedProductForModifier = null"
       @add="handleModifierSelectionConfirm"
     />
+
+    <!-- Mode Toggle (For QC/Testing/Fallback) -->
+    <div class="absolute bottom-4 left-4 z-50">
+      <button 
+        @click="posMode = posMode === 'cashier' ? 'catalog' : 'cashier'"
+        class="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg shadow-lg opacity-30 hover:opacity-100 transition-opacity"
+      >
+        Switch to {{ posMode === 'cashier' ? 'Catalog Mode' : 'Cashier Mode' }}
+      </button>
+    </div>
   </div>
 </template>

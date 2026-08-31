@@ -358,75 +358,75 @@ let customers: Customer[] = [
 
 let products: Product[] = [
   {
-    id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', barcode: '8991234567890', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
+    id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', barcode: '899100000005', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
     basePrice: 8000, costPrice: 4800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 44, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 34, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '6', name: 'Chocolate Cake Slice', sku: 'PRD-000006', barcode: '8992345678901', imageUrl: '/products/PRD-000006.svg', type: 'Inventory Item', category: 'Bakery',
+    id: '6', name: 'Chocolate Cake Slice', sku: 'PRD-000006', barcode: '899100000006', imageUrl: '/products/PRD-000006.svg', type: 'Inventory Item', category: 'Bakery',
     basePrice: 35000, costPrice: 21000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 20, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 89, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '7', name: 'Potato Chips (75g)', sku: 'PRD-000007', barcode: '8993456789012', imageUrl: '/products/PRD-000007.svg', type: 'Inventory Item', category: 'Snacks',
+    id: '7', name: 'Potato Chips (75g)', sku: 'PRD-000007', barcode: '899100000007', imageUrl: '/products/PRD-000007.svg', type: 'Inventory Item', category: 'Snacks',
     basePrice: 15000, costPrice: 9000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 39, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '8', name: 'Orange Juice (300ml)', sku: 'PRD-000008', barcode: '899100000008', imageUrl: '/products/PRD-000008.svg', type: 'Inventory Item', category: 'Beverages',
+    basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
+    currentStock: 22, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: '9', name: 'Brown Sugar (1kg)', sku: 'PRD-000009', barcode: '899100000009', imageUrl: '/products/PRD-000009.svg', type: 'Inventory Item', category: 'Pantry',
+    basePrice: 22000, costPrice: 13200, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
     currentStock: 57, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '8', name: 'Orange Juice (300ml)', sku: 'PRD-000008', imageUrl: '/products/PRD-000008.svg', type: 'Inventory Item', category: 'Beverages',
-    basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 26, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
-    updatedAt: '2026-08-01T08:00:00Z'
-  },
-  {
-    id: '9', name: 'Brown Sugar (1kg)', sku: 'PRD-000009', imageUrl: '/products/PRD-000009.svg', type: 'Inventory Item', category: 'Pantry',
-    basePrice: 22000, costPrice: 13200, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 52, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
-    updatedAt: '2026-08-01T08:00:00Z'
-  },
-  {
-    id: '10', name: 'Spaghetti (500g)', sku: 'PRD-000010', imageUrl: '/products/PRD-000010.svg', type: 'Inventory Item', category: 'Pantry',
+    id: '10', name: 'Spaghetti (500g)', sku: 'PRD-000010', barcode: '899100000010', imageUrl: '/products/PRD-000010.svg', type: 'Inventory Item', category: 'Pantry',
     basePrice: 18000, costPrice: 10800, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 11, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 15, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '11', name: 'Cooking Oil (1L)', sku: 'PRD-000011', imageUrl: '/products/PRD-000011.svg', type: 'Inventory Item', category: 'Pantry',
+    id: '11', name: 'Cooking Oil (1L)', sku: 'PRD-000011', barcode: '899100000011', imageUrl: '/products/PRD-000011.svg', type: 'Inventory Item', category: 'Pantry',
     basePrice: 20000, costPrice: 12000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 18, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 19, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '12', name: 'Tuna Can (185g)', sku: 'PRD-000012', imageUrl: '/products/PRD-000012.svg', type: 'Inventory Item', category: 'Pantry',
+    id: '12', name: 'Tuna Can (185g)', sku: 'PRD-000012', barcode: '899100000012', imageUrl: '/products/PRD-000012.svg', type: 'Inventory Item', category: 'Pantry',
     basePrice: 24000, costPrice: 14400, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 25, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 46, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '13', name: 'Green Tea (Cup)', sku: 'PRD-000013', imageUrl: '/products/PRD-000013.svg', type: 'Inventory Item', category: 'Beverages',
+    id: '13', name: 'Green Tea (Cup)', sku: 'PRD-000013', barcode: '899100000013', imageUrl: '/products/PRD-000013.svg', type: 'Inventory Item', category: 'Beverages',
     basePrice: 20000, costPrice: 12000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 31, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 24, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '14', name: 'Espresso Beans (500g)', sku: 'PRD-000014', imageUrl: '/products/PRD-000014.svg', type: 'Inventory Item', category: 'Coffee',
+    id: '14', name: 'Espresso Beans (500g)', sku: 'PRD-000014', barcode: '899100000014', imageUrl: '/products/PRD-000014.svg', type: 'Inventory Item', category: 'Coffee',
     basePrice: 90000, costPrice: 54000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 11, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 48, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '15', name: 'Butter Croissant', sku: 'PRD-000015', imageUrl: '/products/PRD-000015.svg', type: 'Inventory Item', category: 'Bakery',
+    id: '15', name: 'Butter Croissant', sku: 'PRD-000015', barcode: '899100000015', imageUrl: '/products/PRD-000015.svg', type: 'Inventory Item', category: 'Bakery',
     basePrice: 25000, costPrice: 15000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 23, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 20, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
-    id: '16', name: 'Club Sandwich', sku: 'PRD-000016', imageUrl: '/products/PRD-000016.svg', type: 'Inventory Item', category: 'Snacks',
+    id: '16', name: 'Club Sandwich', sku: 'PRD-000016', barcode: '899100000016', imageUrl: '/products/PRD-000016.svg', type: 'Inventory Item', category: 'Snacks',
     basePrice: 45000, costPrice: 27000, taxClass: 'Standard 11%', erpManaged: false, trackInventory: true,
-    currentStock: 37, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
+    currentStock: 15, minStock: 5, unit: 'PCS', status: 'Active', createdAt: '2026-08-01T08:00:00Z',
     updatedAt: '2026-08-01T08:00:00Z'
   },
   {
@@ -513,8 +513,8 @@ let locations: Location[] = [
 ]
 
 let inventoryBalances: InventoryBalance[] = [
-  { id: 'IB-5-2', productId: '5', locationId: 'LOC-2', currentStock: 38, reservedStock: 0 },
-  { id: 'IB-6-2', productId: '6', locationId: 'LOC-2', currentStock: 39, reservedStock: 0 },
+  { id: 'IB-5-2', productId: '5', locationId: 'LOC-2', currentStock: 34, reservedStock: 0 },
+  { id: 'IB-6-2', productId: '6', locationId: 'LOC-2', currentStock: 89, reservedStock: 0 },
   { id: 'IB-7-2', productId: '7', locationId: 'LOC-2', currentStock: 39, reservedStock: 0 },
   { id: 'IB-8-2', productId: '8', locationId: 'LOC-2', currentStock: 22, reservedStock: 0 },
   { id: 'IB-9-2', productId: '9', locationId: 'LOC-2', currentStock: 57, reservedStock: 0 },
