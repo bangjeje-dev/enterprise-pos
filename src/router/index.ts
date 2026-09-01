@@ -59,6 +59,21 @@ const router = createRouter({
           component: () => import('@/views/catalog/ProductFormView.vue')
         },
         {
+          path: 'catalog/product-skus',
+          name: 'product-skus',
+          component: () => import('@/views/catalog/ProductSkuListView.vue')
+        },
+        {
+          path: 'catalog/product-skus/new',
+          name: 'product-sku-new',
+          component: () => import('@/views/catalog/ProductSkuFormView.vue')
+        },
+        {
+          path: 'catalog/product-skus/:id',
+          name: 'product-sku-edit',
+          component: () => import('@/views/catalog/ProductSkuFormView.vue')
+        },
+        {
           path: 'inventory/dashboard',
           name: 'inventory-dashboard',
           component: () => import('@/views/inventory/InventoryDashboardView.vue')

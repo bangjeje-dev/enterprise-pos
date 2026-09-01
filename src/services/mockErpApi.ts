@@ -2,6 +2,40 @@
 export type ProductType = 'Inventory Item' | 'Service' | 'Non-Inventory' | 'Bundle' | 'Variant Product'
 export type ProductStatus = 'Draft' | 'Active' | 'Inactive' | 'Archived'
 
+
+export interface ProductMaster {
+  id: string
+  name: string
+  type: ProductType
+  unit: string
+  hpp: number
+  description?: string
+  supplier?: string
+  categoryId?: string
+  imageUrl?: string
+  barcode?: string
+  taxClass?: string
+  trackInventory?: boolean
+  status: ProductStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProductSku {
+  id: string
+  productId: string
+  sku: string
+  brand?: string
+  size?: string
+  batchNumber?: string
+  expiredAt?: string
+  minimalStock: number
+  price: number
+  status: ProductStatus
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -356,6 +390,52 @@ let customers: Customer[] = [
   }
 ]
 
+
+let productMasters: ProductMaster[] = []
+let productSkus: ProductSku[] = []
+
+// Migration function to initialize masters and skus from legacy products if empty
+function initializeCatalog() {
+  if (productMasters.length === 0 && products.length > 0) {
+    products.forEach(p => {
+      const masterId = 'MST-' + p.id;
+      const pm: ProductMaster = {
+        id: masterId,
+        name: p.name,
+        type: p.type,
+        unit: p.unit,
+        hpp: p.costPrice || 0,
+        description: p.description,
+        supplier: p.supplier,
+        categoryId: p.categoryId,
+        imageUrl: p.imageUrl,
+        barcode: p.barcode,
+        taxClass: p.taxClass,
+        trackInventory: p.trackInventory,
+        status: p.status,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      };
+      const sku: ProductSku = {
+        id: p.id, // KEEP legacy ID so POS and Inventory continue to match!
+        productId: masterId,
+        sku: p.sku,
+        brand: p.brand,
+        size: '',
+        batchNumber: '',
+        expiredAt: '',
+        minimalStock: p.minStock || 0,
+        price: p.basePrice || 0,
+        status: p.status,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      };
+      productMasters.push(pm);
+      productSkus.push(sku);
+    });
+  }
+}
+
 let products: Product[] = [
   {
     id: '5', name: 'Mineral Water (500ml)', sku: 'PRD-000005', barcode: '899100000005', imageUrl: '/products/PRD-000005.svg', type: 'Inventory Item', category: 'Beverages',
@@ -623,6 +703,8 @@ function loadDb() {
       if (parsed.categories) categories = parsed.categories
       if (parsed.modifierGroups) modifierGroups = parsed.modifierGroups
       if (parsed.products) products = parsed.products
+      if (parsed.productMasters) productMasters = parsed.productMasters
+      if (parsed.productSkus) productSkus = parsed.productSkus
       if (parsed.locations) locations = parsed.locations
       if (parsed.inventoryBalances) inventoryBalances = parsed.inventoryBalances
       if (parsed.recentMovements) recentMovements = parsed.recentMovements
@@ -646,6 +728,8 @@ function saveDb() {
     const data = {
       categories,
       modifierGroups,
+      productMasters,
+      productSkus,
       products,
       locations,
       inventoryBalances,
@@ -700,13 +784,130 @@ const delay = (ms = 500) => new Promise(resolve => setTimeout(resolve, ms))
 
 const api = {
   // Products
+  
   async getProducts(): Promise<Product[]> {
     await delay()
-    return products.map(p => {
-      const cat = categories.find(c => c.id === p.categoryId)
-      return { ...p, category: cat ? cat.name : p.category }
-    })
+    
+    // Internal Adapter for Cashier-First POS
+    // Joins ProductMaster and ProductSku into the legacy Product structure
+    const joinedProducts: Product[] = []
+    
+    for (const sku of productSkus) {
+      if (sku.status !== 'Active') continue 
+      
+      const master = productMasters.find(m => m.id === sku.productId)
+      if (!master) continue
+      
+      const cat = categories.find(c => c.id === master.categoryId)
+      
+      joinedProducts.push({
+        id: sku.id, 
+        name: master.name,
+        description: master.description,
+        sku: sku.sku,
+        barcode: master.barcode,
+        type: master.type,
+        category: cat ? cat.name : (master.categoryId || ''),
+        categoryId: master.categoryId,
+        brand: sku.brand,
+        basePrice: sku.price,
+        costPrice: master.hpp,
+        taxClass: master.taxClass || 'Standard 11%',
+        supplier: master.supplier,
+        erpManaged: false,
+        trackInventory: master.trackInventory || false,
+        currentStock: 0,
+        minStock: sku.minimalStock,
+        unit: master.unit,
+        status: sku.status,
+        imageUrl: master.imageUrl,
+        createdAt: sku.createdAt,
+        updatedAt: sku.updatedAt
+      })
+    }
+    
+    return joinedProducts
   },
+
+  // Product Master CRUD
+  async getProductMasters(): Promise<ProductMaster[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(productMasters))
+  },
+  async getProductMasterById(id: string): Promise<ProductMaster> {
+    await delay()
+    const item = productMasters.find(m => m.id === id)
+    if (!item) throw new Error('Product Master not found')
+    return JSON.parse(JSON.stringify(item))
+  },
+  async createProductMaster(master: Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProductMaster> {
+    await delay()
+    const newMaster: ProductMaster = {
+      ...master,
+      id: `MST-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    productMasters.push(newMaster)
+    return newMaster
+  },
+  async updateProductMaster(id: string, updates: Partial<ProductMaster>): Promise<ProductMaster> {
+    await delay()
+    const index = productMasters.findIndex(m => m.id === id)
+    if (index === -1) throw new Error('Product Master not found')
+    productMasters[index] = { ...productMasters[index], ...updates, updatedAt: new Date().toISOString() } as ProductMaster
+    return productMasters[index]
+  },
+  async deleteProductMaster(id: string): Promise<void> {
+    await delay()
+    const hasSkus = productSkus.some(s => s.productId === id)
+    if (hasSkus) throw new Error('Cannot delete Product Master that has SKUs.')
+    productMasters = productMasters.filter(m => m.id !== id)
+  },
+
+  // Product SKU CRUD
+  async getProductSkus(): Promise<ProductSku[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(productSkus))
+  },
+  async getProductSkuById(id: string): Promise<ProductSku> {
+    await delay()
+    const item = productSkus.find(s => s.id === id)
+    if (!item) throw new Error('Product SKU not found')
+    return JSON.parse(JSON.stringify(item))
+  },
+  async createProductSku(sku: Omit<ProductSku, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProductSku> {
+    await delay()
+    const skuConflict = productSkus.find(s => s.sku.toLowerCase() === sku.sku.toLowerCase())
+    if (skuConflict) throw new Error(`SKU ${sku.sku} is already in use.`)
+
+    const newSku: ProductSku = {
+      ...sku,
+      id: `SKU-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    productSkus.push(newSku)
+    return newSku
+  },
+  async updateProductSku(id: string, updates: Partial<ProductSku>): Promise<ProductSku> {
+    await delay()
+    const index = productSkus.findIndex(s => s.id === id)
+    if (index === -1) throw new Error('Product SKU not found')
+    
+    if (updates.sku) {
+      const skuConflict = productSkus.find(s => s.id !== id && s.sku.toLowerCase() === updates.sku!.toLowerCase())
+      if (skuConflict) throw new Error(`SKU ${updates.sku} is already in use.`)
+    }
+
+    productSkus[index] = { ...productSkus[index], ...updates, updatedAt: new Date().toISOString() } as ProductSku
+    return productSkus[index]
+  },
+  async deleteProductSku(id: string): Promise<void> {
+    await delay()
+    productSkus = productSkus.filter(s => s.id !== id)
+  },
+
   async createProduct(product: Product): Promise<Product> {
     await delay()
     

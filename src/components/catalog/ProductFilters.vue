@@ -4,45 +4,25 @@ import { useProductStore } from '@/stores/product'
 import { storeToRefs } from 'pinia'
 import { Search, SlidersHorizontal, X } from '@lucide/vue'
 
-import { useCategoryStore } from '@/stores/category'
-
 const store = useProductStore()
-const categoryStore = useCategoryStore()
 
 const { 
   searchQuery, 
-  filterCategory, 
   filterStatus,
-  filterBrand,
   filterType,
-  filterSupplier,
-  filterTaxClass,
-  filterErpStatus,
-  filterStockStatus
+  filterSupplier
 } = storeToRefs(store)
 
 const showAdvanced = ref(false)
 
-// Fetch categories if empty
-if (categoryStore.categories.length === 0) {
-  categoryStore.fetchCategories()
-}
-
 const statuses = ['Active', 'Draft', 'Inactive', 'Archived']
-const brands = ['Kopi Kenangan', 'Oatly', 'Nestle', 'Local']
 const types = ['Inventory Item', 'Service', 'Non-Inventory', 'Bundle', 'Variant Product']
-const taxClasses = ['Standard 11%', 'Zero Rated', 'Exempt']
 
 const clearFilters = () => {
   searchQuery.value = ''
-  filterCategory.value = ''
   filterStatus.value = ''
-  filterBrand.value = ''
   filterType.value = ''
   filterSupplier.value = ''
-  filterTaxClass.value = ''
-  filterErpStatus.value = ''
-  filterStockStatus.value = ''
 }
 </script>
 
@@ -59,15 +39,15 @@ const clearFilters = () => {
             type="text" 
             v-model="searchQuery"
             class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2" 
-            placeholder="Search by name, SKU, or barcode..." 
+            placeholder="Search by name..." 
           >
         </div>
       </div>
       
       <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
-        <select v-model="filterCategory" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">
-          <option value="">All Categories</option>
-          <option v-for="cat in categoryStore.activeCategories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
+        <select v-model="filterType" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">
+          <option value="">All Types</option>
+          <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
         </select>
         
         <select v-model="filterStatus" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">
@@ -89,45 +69,7 @@ const clearFilters = () => {
 
     <!-- Advanced Filters Panel -->
     <div v-show="showAdvanced" class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div>
-        <label class="block mb-2 text-xs font-medium text-gray-900 uppercase">Brand</label>
-        <select v-model="filterBrand" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
-          <option value="">All Brands</option>
-          <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="block mb-2 text-xs font-medium text-gray-900 uppercase">Product Type</label>
-        <select v-model="filterType" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
-          <option value="">All Types</option>
-          <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="block mb-2 text-xs font-medium text-gray-900 uppercase">Stock Status</label>
-        <select v-model="filterStockStatus" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
-          <option value="">All Stock Status</option>
-          <option value="in_stock">In Stock</option>
-          <option value="low_stock">Low Stock</option>
-          <option value="out_of_stock">Out of Stock</option>
-        </select>
-      </div>
-      <div>
-        <label class="block mb-2 text-xs font-medium text-gray-900 uppercase">ERP Sync Status</label>
-        <select v-model="filterErpStatus" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
-          <option value="">Any Status</option>
-          <option value="synced">ERP Managed</option>
-          <option value="manual">Standalone</option>
-        </select>
-      </div>
-      <div>
-        <label class="block mb-2 text-xs font-medium text-gray-900 uppercase">Tax Class</label>
-        <select v-model="filterTaxClass" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
-          <option value="">All Tax Classes</option>
-          <option v-for="tax in taxClasses" :key="tax" :value="tax">{{ tax }}</option>
-        </select>
-      </div>
-      
+      <!-- Empty space for layout balance, since we removed most legacy filters -->
       <div class="md:col-span-4 flex justify-end mt-2">
         <button 
           @click="clearFilters"

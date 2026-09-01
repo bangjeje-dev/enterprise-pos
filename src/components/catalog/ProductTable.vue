@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useProductStore } from '@/stores/product'
 import { storeToRefs } from 'pinia'
-import { MoreHorizontal, Edit, Trash2, Box, Package, Server, AlertCircle, Archive, CheckCircle, XCircle } from '@lucide/vue'
+import { Edit, Trash2, Box, Package, AlertCircle, CheckCircle } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
@@ -10,16 +10,16 @@ const props = defineProps<{
 }>()
 
 const store = useProductStore()
-const { filteredProducts } = storeToRefs(store)
+const { filteredProductMasters } = storeToRefs(store)
 const { showToast } = useToast()
 
 const selectedIds = ref<string[]>([])
 
 const selectAll = computed({
-  get: () => filteredProducts.value.length > 0 && selectedIds.value.length === filteredProducts.value.length,
+  get: () => filteredProductMasters.value.length > 0 && selectedIds.value.length === filteredProductMasters.value.length,
   set: (val) => {
     if (val) {
-      selectedIds.value = filteredProducts.value.map(p => p.id)
+      selectedIds.value = filteredProductMasters.value.map(p => p.id)
     } else {
       selectedIds.value = []
     }
@@ -34,13 +34,6 @@ const formatIDR = (val: number) => {
   }).format(val)
 }
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('id-ID', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  })
-}
-
 const getStatusClass = (status: string) => {
   switch (status) {
     case 'Active': return 'bg-green-100 text-green-800 border-green-200'
@@ -51,39 +44,10 @@ const getStatusClass = (status: string) => {
   }
 }
 
-const handleBulkAction = async (action: string) => {
-  if (selectedIds.value.length === 0) return
-  
-  store.error = null
-  
-  if (action === 'delete') {
-    if (confirm(`Are you sure you want to delete ${selectedIds.value.length} products?`)) {
-      await store.bulkDelete(selectedIds.value)
-      if (store.error) {
-        showToast('Delete Failed', store.error, 'error')
-      } else {
-        showToast('Success', 'Products deleted successfully', 'success')
-        selectedIds.value = []
-      }
-    }
-  } else if (action === 'activate') {
-    await store.bulkUpdateStatus(selectedIds.value, 'Active')
-    if (store.error) showToast('Update Failed', store.error, 'error')
-    else showToast('Success', 'Products activated', 'success')
-  } else if (action === 'deactivate') {
-    await store.bulkUpdateStatus(selectedIds.value, 'Inactive')
-    if (store.error) showToast('Update Failed', store.error, 'error')
-    else showToast('Success', 'Products deactivated', 'success')
-  } else if (action === 'archive') {
-    await store.bulkUpdateStatus(selectedIds.value, 'Archived')
-    if (store.error) showToast('Update Failed', store.error, 'error')
-    else showToast('Success', 'Products archived', 'success')
-  }
-}
 const handleSingleDelete = async (product: any) => {
   if (confirm(`Are you sure you want to delete ${product.name}?`)) {
     store.error = null
-    await store.deleteProduct(product.id)
+    await store.deleteProductMaster(product.id)
     if (store.error) {
       showToast('Delete Failed', store.error, 'error')
     } else {
@@ -106,10 +70,7 @@ const handleSingleDelete = async (product: any) => {
         {{ selectedIds.length }} product(s) selected
       </div>
       <div class="flex items-center space-x-2">
-        <button @click="handleBulkAction('activate')" class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">Activate</button>
-        <button @click="handleBulkAction('deactivate')" class="px-3 py-1.5 text-xs font-medium text-yellow-800 bg-yellow-300 rounded-lg hover:bg-yellow-400">Deactivate</button>
-        <button @click="handleBulkAction('archive')" class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">Archive</button>
-        <button @click="handleBulkAction('delete')" class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Delete</button>
+        <!-- Kept basic layout for future bulk actions -->
       </div>
     </div>
 
@@ -123,24 +84,19 @@ const handleSingleDelete = async (product: any) => {
                 <input type="checkbox" v-model="selectAll" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
               </div>
             </th>
-            <th v-if="props.visibleColumns.includes('image')" scope="col" class="px-4 py-3 w-16">Image</th>
             <th v-if="props.visibleColumns.includes('name')" scope="col" class="px-4 py-3">Product Name</th>
-            <th v-if="props.visibleColumns.includes('sku')" scope="col" class="px-4 py-3">SKU</th>
-            <th v-if="props.visibleColumns.includes('barcode')" scope="col" class="px-4 py-3">Barcode</th>
-            <th v-if="props.visibleColumns.includes('brand')" scope="col" class="px-4 py-3">Brand</th>
-            <th v-if="props.visibleColumns.includes('category')" scope="col" class="px-4 py-3">Category</th>
             <th v-if="props.visibleColumns.includes('type')" scope="col" class="px-4 py-3">Type</th>
-            <th v-if="props.visibleColumns.includes('price')" scope="col" class="px-4 py-3 text-right">Base Price</th>
-            <th v-if="props.visibleColumns.includes('stock')" scope="col" class="px-4 py-3 text-center">Stock</th>
-            <th v-if="props.visibleColumns.includes('erp')" scope="col" class="px-4 py-3 text-center">ERP</th>
+            <th v-if="props.visibleColumns.includes('unit')" scope="col" class="px-4 py-3 text-center">Unit</th>
+            <th v-if="props.visibleColumns.includes('hpp')" scope="col" class="px-4 py-3 text-right">Hpp</th>
+            <th v-if="props.visibleColumns.includes('supplier')" scope="col" class="px-4 py-3">Supplier</th>
+            <th v-if="props.visibleColumns.includes('description')" scope="col" class="px-4 py-3">Description</th>
             <th v-if="props.visibleColumns.includes('status')" scope="col" class="px-4 py-3 text-center">Status</th>
-            <th v-if="props.visibleColumns.includes('updated')" scope="col" class="px-4 py-3">Last Updated</th>
             <th scope="col" class="px-4 py-3 text-right sticky right-0 bg-gray-50 z-10">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr 
-            v-for="product in filteredProducts" 
+            v-for="product in filteredProductMasters" 
             :key="product.id" 
             class="border-b hover:bg-gray-50"
             :class="{ 'bg-blue-50/30': selectedIds.includes(product.id) }"
@@ -151,59 +107,22 @@ const handleSingleDelete = async (product: any) => {
               </div>
             </td>
             
-            <td v-if="props.visibleColumns.includes('image')" class="px-4 py-2">
-              <div class="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                <Package v-if="product.type === 'Bundle'" class="w-5 h-5 text-gray-500" />
-                <Box v-else class="w-5 h-5 text-gray-500" />
-              </div>
-            </td>
-            
             <td v-if="props.visibleColumns.includes('name')" class="px-4 py-2 font-semibold text-gray-900">{{ product.name }}</td>
-            
-            <td v-if="props.visibleColumns.includes('sku')" class="px-4 py-2 font-mono text-xs text-gray-500">{{ product.sku }}</td>
-            
-            <td v-if="props.visibleColumns.includes('barcode')" class="px-4 py-2 font-mono text-xs text-gray-500">{{ product.barcode || '-' }}</td>
-            
-            <td v-if="props.visibleColumns.includes('brand')" class="px-4 py-2 text-gray-900">{{ product.brand || '-' }}</td>
-            
-            <td v-if="props.visibleColumns.includes('category')" class="px-4 py-2 text-gray-900">{{ product.category }}</td>
             
             <td v-if="props.visibleColumns.includes('type')" class="px-4 py-2 text-gray-500">{{ product.type }}</td>
             
-            <td v-if="props.visibleColumns.includes('price')" class="px-4 py-2 text-right font-medium text-gray-900">{{ formatIDR(product.basePrice) }}</td>
+            <td v-if="props.visibleColumns.includes('unit')" class="px-4 py-2 text-center text-gray-900">{{ product.unit }}</td>
             
-            <td v-if="props.visibleColumns.includes('stock')" class="px-4 py-2 text-center">
-              <template v-if="product.trackInventory">
-                <span :class="[
-                  'font-bold',
-                  product.currentStock <= product.minStock ? 'text-red-600' : 'text-gray-900'
-                ]">
-                  {{ product.currentStock }}
-                </span>
-                <span class="text-xs text-gray-500 ml-1">{{ product.unit }}</span>
-              </template>
-              <template v-else>
-                <span class="text-gray-400">&infin;</span>
-              </template>
-            </td>
+            <td v-if="props.visibleColumns.includes('hpp')" class="px-4 py-2 text-right font-medium text-gray-900">{{ formatIDR(product.hpp) }}</td>
             
-            <td v-if="props.visibleColumns.includes('erp')" class="px-4 py-2 text-center">
-              <span v-if="product.erpManaged" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                <Server class="w-3 h-3 mr-1" /> Synced
-              </span>
-              <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                Local
-              </span>
-            </td>
+            <td v-if="props.visibleColumns.includes('supplier')" class="px-4 py-2 text-gray-900">{{ product.supplier || '-' }}</td>
+            
+            <td v-if="props.visibleColumns.includes('description')" class="px-4 py-2 text-gray-500 max-w-xs truncate">{{ product.description || '-' }}</td>
             
             <td v-if="props.visibleColumns.includes('status')" class="px-4 py-2 text-center">
               <span :class="['text-xs font-medium px-2.5 py-0.5 rounded-full border', getStatusClass(product.status)]">
                 {{ product.status }}
               </span>
-            </td>
-            
-            <td v-if="props.visibleColumns.includes('updated')" class="px-4 py-2 text-gray-500 text-xs">
-              {{ formatDate(product.updatedAt) }}
             </td>
             
             <td class="px-4 py-2 text-right sticky right-0 bg-white z-10 border-l border-gray-100">
@@ -216,7 +135,7 @@ const handleSingleDelete = async (product: any) => {
             </td>
           </tr>
           
-          <tr v-if="filteredProducts.length === 0">
+          <tr v-if="filteredProductMasters.length === 0">
             <td :colspan="visibleColumns.length + 2" class="px-4 py-12 text-center">
               <AlertCircle class="w-8 h-8 text-gray-400 mx-auto mb-3" />
               <p class="text-base font-semibold text-gray-900">No products found</p>

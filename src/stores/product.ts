@@ -1,48 +1,38 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { mockErpApi, type Product, type ProductStatus, type ProductType } from '@/services/mockErpApi'
+import { mockErpApi, type Product, type ProductStatus, type ProductType, type ProductMaster } from '@/services/mockErpApi'
 
-export type { Product, ProductStatus, ProductType }
+export type { Product, ProductStatus, ProductType, ProductMaster }
 
 export const useProductStore = defineStore('product', () => {
+  // Legacy Products (Joined View for POS)
   const products = ref<Product[]>([])
+  
+  // Product Masters (For Catalog UI)
+  const productMasters = ref<ProductMaster[]>([])
+
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Filters State
+  // Filters State (used by Catalog UI)
   const searchQuery = ref('')
-  const filterCategory = ref('')
   const filterStatus = ref('')
-  const filterBrand = ref('')
   const filterType = ref('')
   const filterSupplier = ref('')
-  const filterTaxClass = ref('')
-  const filterErpStatus = ref('') 
-  const filterStockStatus = ref('') 
   
-  // Getters
-  const filteredProducts = computed(() => {
-    let result = products.value
+  // Getters for Product Master
+  const filteredProductMasters = computed(() => {
+    let result = productMasters.value
 
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase()
       result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        p.sku.toLowerCase().includes(q) || 
-        (p.barcode && p.barcode.toLowerCase().includes(q))
+        p.name.toLowerCase().includes(q)
       )
-    }
-
-    if (filterCategory.value) {
-      result = result.filter(p => p.category === filterCategory.value)
     }
 
     if (filterStatus.value) {
       result = result.filter(p => p.status === filterStatus.value)
-    }
-
-    if (filterBrand.value) {
-      result = result.filter(p => p.brand === filterBrand.value)
     }
 
     if (filterType.value) {
@@ -53,33 +43,16 @@ export const useProductStore = defineStore('product', () => {
       result = result.filter(p => p.supplier === filterSupplier.value)
     }
 
-    if (filterTaxClass.value) {
-      result = result.filter(p => p.taxClass === filterTaxClass.value)
-    }
-
-    if (filterErpStatus.value) {
-      const isManaged = filterErpStatus.value === 'synced'
-      result = result.filter(p => p.erpManaged === isManaged)
-    }
-
-    if (filterStockStatus.value) {
-      if (filterStockStatus.value === 'in_stock') {
-        result = result.filter(p => !p.trackInventory || p.currentStock > p.minStock)
-      } else if (filterStockStatus.value === 'low_stock') {
-        result = result.filter(p => p.trackInventory && p.currentStock <= p.minStock && p.currentStock > 0)
-      } else if (filterStockStatus.value === 'out_of_stock') {
-        result = result.filter(p => p.trackInventory && p.currentStock <= 0)
-      }
-    }
-
     return result
   })
 
-  const getProductById = (id: string) => {
-    return products.value.find(p => p.id === id)
+  const getProductMasterById = (id: string) => {
+    return productMasters.value.find(p => p.id === id)
   }
 
-  // Actions
+  // --- ACTIONS ---
+
+  // Legacy Action for POS
   const fetchProducts = async () => {
     isLoading.value = true
     error.value = null
@@ -92,91 +65,81 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  const addProduct = async (product: Product) => {
+  // Product Master Actions
+  const fetchProductMasters = async () => {
     isLoading.value = true
+    error.value = null
     try {
-      const newProduct = await mockErpApi.createProduct(product)
-      products.value.push(newProduct)
+      productMasters.value = await mockErpApi.getProductMasters()
     } catch (err: any) {
-      error.value = err.message
+      error.value = err.message || 'Failed to fetch product masters'
     } finally {
       isLoading.value = false
     }
   }
 
-  const updateProduct = async (id: string, updates: Partial<Product>) => {
+  const createProductMaster = async (master: Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'>) => {
     isLoading.value = true
     try {
-      const updated = await mockErpApi.updateProduct(id, updates)
-      const index = products.value.findIndex(p => p.id === id)
+      const newMaster = await mockErpApi.createProductMaster(master)
+      productMasters.value.push(newMaster)
+      return newMaster
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updateProductMaster = async (id: string, updates: Partial<ProductMaster>) => {
+    isLoading.value = true
+    try {
+      const updated = await mockErpApi.updateProductMaster(id, updates)
+      const index = productMasters.value.findIndex(p => p.id === id)
       if (index !== -1) {
-        products.value[index] = updated
+        productMasters.value[index] = updated
       }
+      return updated
     } catch (err: any) {
       error.value = err.message
+      throw err
     } finally {
       isLoading.value = false
     }
   }
 
-  const deleteProduct = async (id: string) => {
+  const deleteProductMaster = async (id: string) => {
     isLoading.value = true
     try {
-      await mockErpApi.deleteProduct(id)
-      products.value = products.value.filter(p => p.id !== id)
+      await mockErpApi.deleteProductMaster(id)
+      productMasters.value = productMasters.value.filter(p => p.id !== id)
     } catch (err: any) {
       error.value = err.message
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  // Bulk Actions
-  const bulkUpdateStatus = async (ids: string[], newStatus: ProductStatus) => {
-    // In a real app, this would be a single API call
-    isLoading.value = true
-    try {
-      await Promise.all(ids.map(id => mockErpApi.updateProduct(id, { status: newStatus })))
-      await fetchProducts()
-    } catch (err: any) {
-      error.value = err.message
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  const bulkDelete = async (ids: string[]) => {
-    isLoading.value = true
-    try {
-      await Promise.all(ids.map(id => mockErpApi.deleteProduct(id)))
-      await fetchProducts()
-    } catch (err: any) {
-      error.value = err.message
+      throw err
     } finally {
       isLoading.value = false
     }
   }
 
   return {
+    // POS Legacy
     products,
+    fetchProducts,
+
+    // Catalog UI
+    productMasters,
     isLoading,
     error,
     searchQuery,
-    filterCategory,
     filterStatus,
-    filterBrand,
     filterType,
     filterSupplier,
-    filterTaxClass,
-    filterErpStatus,
-    filterStockStatus,
-    filteredProducts,
-    getProductById,
-    fetchProducts,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    bulkUpdateStatus,
-    bulkDelete
+    filteredProductMasters,
+    getProductMasterById,
+    fetchProductMasters,
+    createProductMaster,
+    updateProductMaster,
+    deleteProductMaster
   }
 })

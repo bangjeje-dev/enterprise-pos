@@ -34,6 +34,7 @@ const navigation = [
     icon: Tags,
     children: [
       { name: 'Products', path: '/catalog/products' },
+      { name: 'Product SKUs', path: '/catalog/product-skus' },
       { name: 'Categories', path: '/catalog/categories' },
       { name: 'Modifiers', path: '/catalog/modifiers' }
     ]

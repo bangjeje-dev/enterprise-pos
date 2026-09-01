@@ -1,110 +1,107 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useProductStore, type Product } from '@/stores/product'
-import { ArrowLeft, Save, X } from '@lucide/vue'
+import { useProductStore } from '@/stores/product'
+import { useProductSkuStore } from '@/stores/productSku'
+import type { ProductMaster, ProductSku } from '@/services/mockErpApi'
+import { ArrowLeft, Save, X, Plus, Trash2 } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
-
-import GeneralInfoCard from '@/components/catalog/forms/GeneralInfoCard.vue'
-import IdentificationCard from '@/components/catalog/forms/IdentificationCard.vue'
-import PricingCard from '@/components/catalog/forms/PricingCard.vue'
-import InventoryCard from '@/components/catalog/forms/InventoryCard.vue'
-import TaxSupplierCard from '@/components/catalog/forms/TaxSupplierCard.vue'
-import ImageUploadCard from '@/components/catalog/forms/ImageUploadCard.vue'
-import ModifiersCard from '@/components/catalog/forms/ModifiersCard.vue'
-import VariantsCard from '@/components/catalog/forms/VariantsCard.vue'
-import BranchInventoryCard from '@/components/catalog/forms/BranchInventoryCard.vue'
-import ProductStatusCard from '@/components/catalog/forms/ProductStatusCard.vue'
-import ERPStatusCard from '@/components/catalog/forms/ERPStatusCard.vue'
-import AuditCard from '@/components/catalog/forms/AuditCard.vue'
 
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const skuStore = useProductSkuStore()
 const { showToast } = useToast()
 
 const isEditing = ref(false)
 const isLoading = ref(true)
 
 // Main form state
-const formData = ref<Partial<Product>>({
+const formData = ref<Partial<ProductMaster>>({
   name: '',
-  description: '',
-  sku: '',
-  barcode: '',
-  multipleBarcodes: [],
   type: 'Inventory Item',
-  category: '',
-  modifierGroupIds: [],
-  brand: '',
-  basePrice: 0,
-  costPrice: 0,
-  retailPrice: 0,
-  wholesalePrice: 0,
-  memberPrice: 0,
-  promotionalPrice: 0,
-  taxClass: 'Standard 11%',
-  supplier: '',
-  erpManaged: false,
-  trackInventory: true,
-  openingStock: 0,
-  currentStock: 0,
-  minStock: 0,
-  maxStock: 0,
-  safetyStock: 0,
-  reorderLevel: 0,
   unit: 'PCS',
-  status: 'Draft',
-  images: [],
-  variants: [],
-  branchInventory: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
+  hpp: 0,
+  description: '',
+  supplier: '',
+  status: 'Active'
 })
 
-onMounted(() => {
+// SKUs to add/edit inline
+const inlineSkus = ref<Partial<ProductSku>[]>([])
+
+const types = ['Inventory Item', 'Service', 'Non-Inventory', 'Bundle', 'Variant Product']
+const statuses = ['Active', 'Draft', 'Inactive', 'Archived']
+
+onMounted(async () => {
   const id = route.params.id as string
   if (id) {
     isEditing.value = true
-    const product = store.getProductById(id)
+    await store.fetchProductMasters()
+    const product = store.getProductMasterById(id)
     if (product) {
-      // Deep copy to prevent direct store mutation
       formData.value = JSON.parse(JSON.stringify(product))
     }
-  } else {
-    // Generate mock SKU for new product
-    formData.value.sku = 'PRD-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0')
+    await skuStore.fetchProductSkus()
+    inlineSkus.value = skuStore.productSkus.filter(s => s.productId === id)
   }
   isLoading.value = false
 })
 
+const addInlineSku = () => {
+  inlineSkus.value.push({
+    sku: '',
+    brand: '',
+    size: '',
+    batchNumber: '',
+    expiredAt: '',
+    minimalStock: 0,
+    price: 0,
+    status: 'Active'
+  })
+}
+
+const removeInlineSku = (index: number) => {
+  inlineSkus.value.splice(index, 1)
+}
+
 const handleSave = async () => {
-  if (!formData.value.name || !formData.value.categoryId || !formData.value.sku || !formData.value.unit) {
-    showToast('Validation Error', 'Please fill in all required fields.', 'error')
+  if (!formData.value.name || !formData.value.type || !formData.value.unit) {
+    showToast('Validation Error', 'Please fill in required fields (Name, Type, Unit).', 'error')
     return
   }
 
-  // Clear previous error
   store.error = null
+  let savedMaster: ProductMaster
 
-  if (isEditing.value) {
-    await store.updateProduct(formData.value.id!, formData.value)
-  } else {
-    await store.addProduct({
-      ...formData.value,
-      id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as Product)
+  try {
+    if (isEditing.value) {
+      savedMaster = await store.updateProductMaster(formData.value.id!, formData.value)
+    } else {
+      savedMaster = await store.createProductMaster(formData.value as Omit<ProductMaster, 'id' | 'createdAt' | 'updatedAt'>)
+    }
+    
+    // Process SKUs
+    for (const skuData of inlineSkus.value) {
+      if (!skuData.sku || skuData.price === undefined) {
+        showToast('Warning', 'Some SKUs were skipped because they lack SKU or Price', 'warning')
+        continue
+      }
+      if (skuData.id) {
+        await skuStore.updateProductSku(skuData.id, skuData)
+      } else {
+        await skuStore.createProductSku({
+          ...skuData,
+          productId: savedMaster.id
+        } as Omit<ProductSku, 'id' | 'createdAt' | 'updatedAt'>)
+      }
+    }
+
+    showToast('Success', 'Product saved successfully.', 'success')
+    router.push('/catalog/products')
+  } catch (e: any) {
+    showToast('Failed to save product', e.message, 'error')
   }
-  
-  if (store.error) {
-    showToast('Failed to save product', store.error, 'error')
-    return
-  }
-  
-  showToast('Success', 'Product saved successfully.', 'success')
-  router.push('/catalog/products')
 }
 
 const handleCancel = () => {
@@ -113,7 +110,7 @@ const handleCancel = () => {
 </script>
 
 <template>
-  <div class="space-y-6 pb-12">
+  <div class="space-y-6 pb-12 max-w-4xl mx-auto">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div class="flex items-center space-x-3">
@@ -157,26 +154,110 @@ const handleCancel = () => {
       Loading...
     </div>
     
-    <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div v-else class="space-y-6">
       
-      <!-- Left Column (~66%) -->
-      <div class="lg:col-span-2 space-y-6">
-        <GeneralInfoCard v-model="formData" />
-        <IdentificationCard v-model="formData" />
-        <PricingCard v-model="formData" />
-        <InventoryCard v-model="formData" />
-        <VariantsCard v-model="formData" />
-        <BranchInventoryCard v-model="formData" />
+      <!-- General Info -->
+      <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Product Information</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="md:col-span-2">
+            <label class="block mb-2 text-sm font-medium text-gray-900">Name <span class="text-red-500">*</span></label>
+            <input v-model="formData.name" type="text" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" placeholder="e.g. Premium Coffee Beans">
+          </div>
+          
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-900">Type <span class="text-red-500">*</span></label>
+            <select v-model="formData.type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-900">Unit <span class="text-red-500">*</span></label>
+            <input v-model="formData.unit" type="text" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" placeholder="e.g. PCS, KG">
+          </div>
+          
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-900">Hpp (Cost Price)</label>
+            <input v-model.number="formData.hpp" type="number" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+          </div>
+          
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-900">Supplier</label>
+            <input v-model="formData.supplier" type="text" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+          </div>
+          
+          <div class="md:col-span-2">
+            <label class="block mb-2 text-sm font-medium text-gray-900">Description</label>
+            <textarea v-model="formData.description" rows="3" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"></textarea>
+          </div>
+          
+          <div class="md:col-span-2">
+            <label class="block mb-2 text-sm font-medium text-gray-900">Status</label>
+            <select v-model="formData.status" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+        </div>
       </div>
       
-      <!-- Right Column (~33%) -->
-      <div class="lg:col-span-1 space-y-6">
-        <ProductStatusCard v-model="formData" />
-        <ModifiersCard v-model="formData.modifierGroupIds!" />
-        <ImageUploadCard v-model="formData" />
-        <TaxSupplierCard v-model="formData" />
-        <ERPStatusCard v-model="formData" />
-        <AuditCard v-if="isEditing" v-model="formData" />
+      <!-- SKU Data Optional -->
+      <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Sku Data (Optional)</h2>
+            <p class="text-sm text-gray-500">Add SKUs and variants for this product.</p>
+          </div>
+          <button @click="addInlineSku" type="button" class="flex items-center text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+            <Plus class="w-4 h-4 mr-1" /> Add Sku
+          </button>
+        </div>
+        
+        <div v-if="inlineSkus.length === 0" class="text-center py-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
+          <p class="text-sm text-gray-500 mb-2">No SKUs added yet.</p>
+          <button @click="addInlineSku" type="button" class="text-sm font-medium text-blue-600 hover:underline">Add first SKU</button>
+        </div>
+        
+        <div v-else class="space-y-4">
+          <div v-for="(sku, index) in inlineSkus" :key="index" class="p-4 border border-gray-200 rounded-lg bg-gray-50 relative group">
+            <button @click="removeInlineSku(index)" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+              <Trash2 class="w-4 h-4" />
+            </button>
+            <h3 class="text-sm font-medium text-gray-900 mb-3 border-b border-gray-200 pb-2">SKU #{{ index + 1 }}</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Sku <span class="text-red-500">*</span></label>
+                <input v-model="sku.sku" type="text" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Price <span class="text-red-500">*</span></label>
+                <input v-model.number="sku.price" type="number" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Brand</label>
+                <input v-model="sku.brand" type="text" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Size</label>
+                <input v-model="sku.size" type="text" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Batch Number</label>
+                <input v-model="sku.batchNumber" type="text" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">Expired At</label>
+                <input v-model="sku.expiredAt" type="date" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+              <div>
+                <label class="block mb-1 text-xs font-medium text-gray-700">M Stock</label>
+                <input v-model.number="sku.minimalStock" type="number" class="bg-white border border-gray-300 text-gray-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block w-full p-2">
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>

@@ -4,22 +4,26 @@ import ProductFilters from '@/components/catalog/ProductFilters.vue'
 import ProductTable from '@/components/catalog/ProductTable.vue'
 import { Plus, Download, Upload, Settings2 } from '@lucide/vue'
 
+import { onMounted } from 'vue'
+import { useProductStore } from '@/stores/product'
+
+const store = useProductStore()
+
+onMounted(() => {
+  store.fetchProductMasters()
+})
+
 const allColumns = [
-  { id: 'image', label: 'Image' },
   { id: 'name', label: 'Product Name' },
-  { id: 'sku', label: 'SKU' },
-  { id: 'barcode', label: 'Barcode' },
-  { id: 'brand', label: 'Brand' },
-  { id: 'category', label: 'Category' },
   { id: 'type', label: 'Type' },
-  { id: 'price', label: 'Price' },
-  { id: 'stock', label: 'Stock' },
-  { id: 'erp', label: 'ERP Status' },
-  { id: 'status', label: 'Status' },
-  { id: 'updated', label: 'Updated At' }
+  { id: 'unit', label: 'Unit' },
+  { id: 'hpp', label: 'Hpp' },
+  { id: 'supplier', label: 'Supplier' },
+  { id: 'description', label: 'Description' },
+  { id: 'status', label: 'Status' }
 ]
 
-const visibleColumns = ref(['image', 'name', 'sku', 'barcode', 'category', 'price', 'stock', 'status'])
+const visibleColumns = ref(['name', 'type', 'unit', 'hpp', 'supplier', 'description', 'status'])
 const showColumnDropdown = ref(false)
 
 const toggleColumn = (id: string) => {
