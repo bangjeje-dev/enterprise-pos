@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useCategoryStore } from '@/stores/category'
-import type { Category } from '@/services/mockErpApi'
+import { useTypeProductStore } from '@/stores/typeProduct'
+import type { TypeProduct } from '@/services/mockErpApi'
 import { ArrowLeft, Save, X } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
-const categoryStore = useCategoryStore()
+const typeProductStore = useTypeProductStore()
 const { showToast } = useToast()
 
 const isEditing = ref(false)
 const isLoading = ref(true)
 const isSaving = ref(false)
 
-const formData = ref<Partial<Category>>({
+const formData = ref<Partial<TypeProduct>>({
+  code: '',
   name: '',
   description: '',
   status: 'Active'
@@ -25,15 +26,15 @@ onMounted(async () => {
   const id = route.params.id as string
   if (id) {
     isEditing.value = true
-    if (categoryStore.categories.length === 0) {
-      await categoryStore.fetchCategories()
+    if (typeProductStore.typeProducts.length === 0) {
+      await typeProductStore.fetchTypeProducts()
     }
-    const cat = categoryStore.getCategoryById(id)
-    if (cat) {
-      formData.value = { ...cat }
+    const tp = typeProductStore.getTypeProductById(id)
+    if (tp) {
+      formData.value = { ...tp }
     } else {
-      showToast('Error', 'Category not found', 'error')
-      router.push('/catalog/categories')
+      showToast('Error', 'Type Product not found', 'error')
+      router.push('/catalog/type-products')
       return
     }
   }
@@ -41,30 +42,34 @@ onMounted(async () => {
 })
 
 const handleSave = async () => {
+  if (!formData.value.code || formData.value.code.trim() === '') {
+    showToast('Validation Error', 'Code is required.', 'error')
+    return
+  }
   if (!formData.value.name || formData.value.name.trim() === '') {
-    showToast('Validation Error', 'Category Name is required.', 'error')
+    showToast('Validation Error', 'Name is required.', 'error')
     return
   }
 
   isSaving.value = true
   try {
     if (isEditing.value) {
-      await categoryStore.updateCategory(formData.value.id!, formData.value)
-      showToast('Success', 'Category updated successfully.', 'success')
+      await typeProductStore.updateTypeProduct(formData.value.id!, formData.value)
+      showToast('Success', 'Type Product updated successfully.', 'success')
     } else {
-      await categoryStore.createCategory(formData.value as any)
-      showToast('Success', 'Category created successfully.', 'success')
+      await typeProductStore.createTypeProduct(formData.value as any)
+      showToast('Success', 'Type Product created successfully.', 'success')
     }
-    router.push('/catalog/categories')
+    router.push('/catalog/type-products')
   } catch (e: any) {
-    showToast('Error', e.message || 'Failed to save category.', 'error')
+    showToast('Error', e.message || 'Failed to save Type Product.', 'error')
   } finally {
     isSaving.value = false
   }
 }
 
 const handleCancel = () => {
-  router.push('/catalog/categories')
+  router.push('/catalog/type-products')
 }
 </script>
 
@@ -81,10 +86,10 @@ const handleCancel = () => {
         </button>
         <div>
           <h1 class="text-2xl font-semibold text-gray-900 tracking-tight">
-            {{ isEditing ? 'Edit Category' : 'New Category' }}
+            {{ isEditing ? 'Edit Type Product' : 'Create Type Product' }}
           </h1>
           <p class="mt-1 text-sm text-gray-500">
-            {{ isEditing ? formData.name : 'Create a new category to organize products.' }}
+            {{ isEditing ? formData.name : 'Create a new Type Product to organize products.' }}
           </p>
         </div>
       </div>
@@ -97,7 +102,7 @@ const handleCancel = () => {
           class="flex items-center text-gray-900 bg-white border border-gray-200 focus:outline-none hover:bg-gray-50 focus:ring-4 focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 shadow-sm disabled:opacity-50"
         >
           <X class="w-4 h-4 mr-2" />
-          Cancel
+          Back
         </button>
         <button 
           @click="handleSave"
@@ -106,7 +111,7 @@ const handleCancel = () => {
           class="flex items-center text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 shadow-sm disabled:opacity-50"
         >
           <Save class="w-4 h-4 mr-2" />
-          {{ isSaving ? 'Saving...' : 'Save Category' }}
+          {{ isSaving ? 'Saving...' : 'Save' }}
         </button>
       </div>
     </div>
@@ -117,13 +122,25 @@ const handleCancel = () => {
     
     <div v-else class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       <div class="px-5 py-4 border-b border-gray-200 bg-gray-50/50">
-        <h3 class="text-lg font-semibold text-gray-900">Category Details</h3>
+        <h3 class="text-lg font-semibold text-gray-900">Type Product Details</h3>
       </div>
       <div class="p-5 space-y-5">
         
-        <!-- Category Name -->
+        <!-- Code -->
         <div>
-          <label class="block mb-2 text-sm font-medium text-gray-900">Category Name <span class="text-red-600">*</span></label>
+          <label class="block mb-2 text-sm font-medium text-gray-900">Code <span class="text-red-600">*</span></label>
+          <input 
+            type="text" 
+            v-model="formData.code"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" 
+            placeholder="e.g. TP-01" 
+            required
+          >
+        </div>
+
+        <!-- Name -->
+        <div>
+          <label class="block mb-2 text-sm font-medium text-gray-900">Name <span class="text-red-600">*</span></label>
           <input 
             type="text" 
             v-model="formData.name"
@@ -140,23 +157,8 @@ const handleCancel = () => {
             rows="4" 
             v-model="formData.description"
             class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500" 
-            placeholder="Optional category description..."
+            placeholder="Optional description..."
           ></textarea>
-        </div>
-
-        <!-- Status -->
-        <div>
-          <label class="block mb-2 text-sm font-medium text-gray-900">Status</label>
-          <select 
-            v-model="formData.status"
-            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          >
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-          <p class="mt-2 text-sm text-gray-500">
-            Inactive categories cannot be assigned to new products.
-          </p>
         </div>
 
       </div>

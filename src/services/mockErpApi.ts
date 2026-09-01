@@ -6,12 +6,11 @@ export type ProductStatus = 'Draft' | 'Active' | 'Inactive' | 'Archived'
 export interface ProductMaster {
   id: string
   name: string
-  type: ProductType
   unit: string
   hpp: number
   description?: string
   supplier?: string
-  categoryId?: string
+  typeProductId?: string
   imageUrl?: string
   barcode?: string
   taxClass?: string
@@ -77,8 +76,9 @@ export interface Product {
 }
 
 // Types from Catalog domain
-export interface Category {
+export interface TypeProduct {
   id: string
+  code: string
   name: string
   description?: string
   status: 'Active' | 'Inactive'
@@ -295,13 +295,8 @@ export interface AuthorizationContext {
 }
 
 // Mock Database State
-let categories: Category[] = [
-  { id: 'cat-1', name: 'Beverages', description: 'Drinks and beverages', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
-  { id: 'cat-2', name: 'Bakery', description: 'Freshly baked goods', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
-  { id: 'cat-3', name: 'Snacks', description: 'Quick bites and snacks', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
-  { id: 'cat-4', name: 'Pantry', description: 'Pantry staples and ingredients', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
-  { id: 'cat-5', name: 'Coffee', description: 'Coffee beans and grounds', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
-  { id: 'cat-6', name: 'Dairy', description: 'Milk, cheese, and dairy products', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+let typeProducts: TypeProduct[] = [
+  { id: 'tp-1', code: 'TP-01', name: 'Mock Type Product', description: 'Neutral mock type product', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' }
 ]
 
 let modifierGroups: ModifierGroup[] = [
@@ -402,12 +397,11 @@ function initializeCatalog() {
       const pm: ProductMaster = {
         id: masterId,
         name: p.name,
-        type: p.type,
         unit: p.unit,
         hpp: p.costPrice || 0,
         description: p.description,
         supplier: p.supplier,
-        categoryId: p.categoryId,
+        typeProductId: 'tp-1',
         imageUrl: p.imageUrl,
         barcode: p.barcode,
         taxClass: p.taxClass,
@@ -700,7 +694,7 @@ function loadDb() {
   if (data) {
     try {
       const parsed = JSON.parse(data)
-      if (parsed.categories) categories = parsed.categories
+      if (parsed.typeProducts) typeProducts = parsed.typeProducts
       if (parsed.modifierGroups) modifierGroups = parsed.modifierGroups
       if (parsed.products) products = parsed.products
       if (parsed.productMasters) productMasters = parsed.productMasters
@@ -726,7 +720,7 @@ function saveDb() {
   
   try {
     const data = {
-      categories,
+      typeProducts,
       modifierGroups,
       productMasters,
       productSkus,
@@ -797,8 +791,9 @@ const api = {
       
       const master = productMasters.find(m => m.id === sku.productId)
       if (!master) continue
-      
-      const cat = categories.find(c => c.id === master.categoryId)
+
+      const typeProd = typeProducts.find(tp => tp.id === master.typeProductId)
+      const categoryName = typeProd ? typeProd.name : 'Uncategorized'
       
       joinedProducts.push({
         id: sku.id, 
@@ -806,9 +801,9 @@ const api = {
         description: master.description,
         sku: sku.sku,
         barcode: master.barcode,
-        type: master.type,
-        category: cat ? cat.name : (master.categoryId || ''),
-        categoryId: master.categoryId,
+        type: categoryName as ProductType,
+        category: categoryName,
+        categoryId: master.typeProductId,
         brand: sku.brand,
         basePrice: sku.price,
         costPrice: master.hpp,
@@ -971,42 +966,45 @@ const api = {
     await delay()
     return JSON.parse(JSON.stringify(locations))
   },
-  // Category CRUD
-  async getCategories(): Promise<Category[]> {
+  // TypeProduct CRUD
+  async getTypeProducts(): Promise<TypeProduct[]> {
     await delay()
-    return [...categories]
+    return [...typeProducts]
   },
-  async getCategoryById(id: string): Promise<Category> {
+  async getTypeProductById(id: string): Promise<TypeProduct> {
     await delay()
-    const cat = categories.find(c => c.id === id)
-    if (!cat) throw new Error('Category not found')
-    return { ...cat }
+    const tp = typeProducts.find(c => c.id === id)
+    if (!tp) throw new Error('Type Product not found')
+    return { ...tp }
   },
-  async createCategory(cat: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Promise<Category> {
+  async createTypeProduct(typeProduct: Omit<TypeProduct, 'id' | 'createdAt' | 'updatedAt'>): Promise<TypeProduct> {
     await delay()
-    const newCat: Category = {
-      ...cat,
-      id: `cat-${Date.now()}`,
+    const newTp: TypeProduct = {
+      ...typeProduct,
+      id: `tp-${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
-    categories.push(newCat)
-    return newCat
+    typeProducts.push(newTp)
+    saveDb()
+    return newTp
   },
-  async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
+  async updateTypeProduct(id: string, updates: Partial<TypeProduct>): Promise<TypeProduct> {
     await delay()
-    const index = categories.findIndex(c => c.id === id)
-    if (index === -1) throw new Error('Category not found')
-    categories[index] = { ...categories[index], ...updates, updatedAt: new Date().toISOString() } as Category
-    return categories[index]
+    const index = typeProducts.findIndex(c => c.id === id)
+    if (index === -1) throw new Error('Type Product not found')
+    typeProducts[index] = { ...typeProducts[index], ...updates, updatedAt: new Date().toISOString() } as TypeProduct
+    saveDb()
+    return typeProducts[index]
   },
-  async deleteCategory(id: string): Promise<void> {
+  async deleteTypeProduct(id: string): Promise<void> {
     await delay()
-    const hasProducts = products.some(p => p.categoryId === id)
+    const hasProducts = productMasters.some(p => p.typeProductId === id)
     if (hasProducts) {
-      throw new Error('Cannot delete category because it has products.')
+      throw new Error('Cannot delete Type Product because it has products.')
     }
-    categories = categories.filter(c => c.id !== id)
+    typeProducts = typeProducts.filter(c => c.id !== id)
+    saveDb()
   },
   
   // ModifierGroup CRUD

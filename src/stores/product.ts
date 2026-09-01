@@ -36,7 +36,7 @@ export const useProductStore = defineStore('product', () => {
     }
 
     if (filterType.value) {
-      result = result.filter(p => p.type === filterType.value)
+      result = result.filter(p => p.typeProductId === filterType.value)
     }
 
     if (filterSupplier.value) {

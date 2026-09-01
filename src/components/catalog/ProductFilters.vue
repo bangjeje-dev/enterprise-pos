@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useProductStore } from '@/stores/product'
+import { useTypeProductStore } from '@/stores/typeProduct'
 import { storeToRefs } from 'pinia'
 import { Search, SlidersHorizontal, X } from '@lucide/vue'
 
 const store = useProductStore()
+const typeProductStore = useTypeProductStore()
 
 const { 
   searchQuery, 
@@ -16,7 +18,12 @@ const {
 const showAdvanced = ref(false)
 
 const statuses = ['Active', 'Draft', 'Inactive', 'Archived']
-const types = ['Inventory Item', 'Service', 'Non-Inventory', 'Bundle', 'Variant Product']
+
+onMounted(async () => {
+  if (typeProductStore.typeProducts.length === 0) {
+    await typeProductStore.fetchTypeProducts()
+  }
+})
 
 const clearFilters = () => {
   searchQuery.value = ''
@@ -47,7 +54,7 @@ const clearFilters = () => {
       <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
         <select v-model="filterType" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">
           <option value="">All Types</option>
-          <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+          <option v-for="tp in typeProductStore.activeTypeProducts" :key="tp.id" :value="tp.id">{{ tp.name }}</option>
         </select>
         
         <select v-model="filterStatus" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-40 p-2">

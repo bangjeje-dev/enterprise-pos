@@ -24,19 +24,19 @@ const router = createRouter({
           component: () => import('@/views/catalog/ProductFormView.vue')
         },
         {
-          path: 'catalog/categories',
-          name: 'categories',
-          component: () => import('@/views/catalog/CategoryListView.vue')
+          path: 'catalog/type-products',
+          name: 'type-products',
+          component: () => import('@/views/catalog/TypeProductListView.vue')
         },
         {
-          path: 'catalog/categories/new',
-          name: 'category-new',
-          component: () => import('@/views/catalog/CategoryFormView.vue')
+          path: 'catalog/type-products/new',
+          name: 'type-product-new',
+          component: () => import('@/views/catalog/TypeProductFormView.vue')
         },
         {
-          path: 'catalog/categories/:id',
-          name: 'category-edit',
-          component: () => import('@/views/catalog/CategoryFormView.vue')
+          path: 'catalog/type-products/:id',
+          name: 'type-product-edit',
+          component: () => import('@/views/catalog/TypeProductFormView.vue')
         },
         {
           path: 'catalog/modifiers',

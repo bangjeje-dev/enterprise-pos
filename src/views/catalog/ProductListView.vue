@@ -6,11 +6,16 @@ import { Plus, Download, Upload, Settings2 } from '@lucide/vue'
 
 import { onMounted } from 'vue'
 import { useProductStore } from '@/stores/product'
+import { useTypeProductStore } from '@/stores/typeProduct'
 
 const store = useProductStore()
+const typeProductStore = useTypeProductStore()
 
-onMounted(() => {
-  store.fetchProductMasters()
+onMounted(async () => {
+  await Promise.all([
+    store.fetchProductMasters(),
+    typeProductStore.fetchTypeProducts()
+  ])
 })
 
 const allColumns = [

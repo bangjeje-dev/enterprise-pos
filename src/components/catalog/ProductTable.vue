@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useProductStore } from '@/stores/product'
+import { useTypeProductStore } from '@/stores/typeProduct'
 import { storeToRefs } from 'pinia'
 import { Edit, Trash2, Box, Package, AlertCircle, CheckCircle } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
@@ -10,8 +11,15 @@ const props = defineProps<{
 }>()
 
 const store = useProductStore()
+const typeProductStore = useTypeProductStore()
 const { filteredProductMasters } = storeToRefs(store)
 const { showToast } = useToast()
+
+const getTypeName = (typeProductId?: string) => {
+  if (!typeProductId) return 'Unknown'
+  const tp = typeProductStore.typeProducts.find(t => t.id === typeProductId)
+  return tp ? tp.name : 'Unknown'
+}
 
 const selectedIds = ref<string[]>([])
 
@@ -109,7 +117,7 @@ const handleSingleDelete = async (product: any) => {
             
             <td v-if="props.visibleColumns.includes('name')" class="px-4 py-2 font-semibold text-gray-900">{{ product.name }}</td>
             
-            <td v-if="props.visibleColumns.includes('type')" class="px-4 py-2 text-gray-500">{{ product.type }}</td>
+            <td v-if="props.visibleColumns.includes('type')" class="px-4 py-2 text-gray-500">{{ getTypeName(product.typeProductId) }}</td>
             
             <td v-if="props.visibleColumns.includes('unit')" class="px-4 py-2 text-center text-gray-900">{{ product.unit }}</td>
             

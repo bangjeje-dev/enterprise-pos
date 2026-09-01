@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/product'
 import { useProductSkuStore } from '@/stores/productSku'
+import { useTypeProductStore } from '@/stores/typeProduct'
 import type { ProductMaster, ProductSku } from '@/services/mockErpApi'
 import { ArrowLeft, Save, X, Plus, Trash2 } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
@@ -11,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
 const skuStore = useProductSkuStore()
+const typeProductStore = useTypeProductStore()
 const { showToast } = useToast()
 
 const isEditing = ref(false)
@@ -19,7 +21,7 @@ const isLoading = ref(true)
 // Main form state
 const formData = ref<Partial<ProductMaster>>({
   name: '',
-  type: 'Inventory Item',
+  typeProductId: '',
   unit: 'PCS',
   hpp: 0,
   description: '',
@@ -30,10 +32,11 @@ const formData = ref<Partial<ProductMaster>>({
 // SKUs to add/edit inline
 const inlineSkus = ref<Partial<ProductSku>[]>([])
 
-const types = ['Inventory Item', 'Service', 'Non-Inventory', 'Bundle', 'Variant Product']
 const statuses = ['Active', 'Draft', 'Inactive', 'Archived']
 
 onMounted(async () => {
+  await typeProductStore.fetchTypeProducts()
+  
   const id = route.params.id as string
   if (id) {
     isEditing.value = true
@@ -66,7 +69,7 @@ const removeInlineSku = (index: number) => {
 }
 
 const handleSave = async () => {
-  if (!formData.value.name || !formData.value.type || !formData.value.unit) {
+  if (!formData.value.name || !formData.value.typeProductId || !formData.value.unit) {
     showToast('Validation Error', 'Please fill in required fields (Name, Type, Unit).', 'error')
     return
   }
@@ -168,8 +171,9 @@ const handleCancel = () => {
           
           <div>
             <label class="block mb-2 text-sm font-medium text-gray-900">Type <span class="text-red-500">*</span></label>
-            <select v-model="formData.type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-              <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+            <select v-model="formData.typeProductId" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <option value="" disabled>Select Type</option>
+              <option v-for="t in typeProductStore.activeTypeProducts" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
           </div>
           
