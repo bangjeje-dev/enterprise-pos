@@ -35,8 +35,8 @@ const navigation = [
     children: [
       { name: 'Products', path: '/catalog/products' },
       { name: 'Product SKUs', path: '/catalog/product-skus' },
-      { name: 'Type Product', path: '/catalog/type-products' },
-      { name: 'Modifiers', path: '/catalog/modifiers' }
+      { name: 'Type Product', path: '/catalog/type-products' }
+      // { name: 'Modifiers', path: '/catalog/modifiers' }
     ]
   },
   {
