@@ -35,7 +35,7 @@ const emit = defineEmits<{
         <span class="font-medium text-red-600">-{{ formatPrice(discount) }}</span>
       </div>
       <div class="flex justify-between text-sm text-gray-600">
-        <span>Tax</span>
+        <span>PPN 11%</span>
         <span class="font-medium text-gray-900">{{ formatPrice(tax) }}</span>
       </div>
       <div class="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100 mt-2">

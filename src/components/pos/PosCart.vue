@@ -47,7 +47,7 @@ const subtotal = computed(() => {
 
 // Phase 2A: hardcoded discount and tax
 const discount = computed(() => 0)
-const tax = computed(() => 0)
+const tax = computed(() => subtotal.value * 0.11)
 const grandTotal = computed(() => subtotal.value - discount.value + tax.value)
 
 const totalItems = computed(() => {

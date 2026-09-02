@@ -107,7 +107,7 @@ const formatCurrency = (val: number) => {
               <span>{{ formatCurrency(transaction.discount) }}</span>
             </div>
             <div class="flex justify-between">
-              <span>Tax (11%)</span>
+              <span>PPN 11%</span>
               <span>{{ formatCurrency(transaction.tax) }}</span>
             </div>
           </div>

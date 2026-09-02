@@ -119,7 +119,9 @@ const loyaltyDiscountAmount = computed(() => {
   return Math.min(discount, props.total)
 })
 
-const finalTotal = computed(() => Math.max(0, props.total - loyaltyDiscountAmount.value))
+const finalSubtotal = computed(() => Math.max(0, props.total - loyaltyDiscountAmount.value))
+const taxAmount = computed(() => finalSubtotal.value * 0.11)
+const finalTotal = computed(() => finalSubtotal.value + taxAmount.value)
 
 const selectMethod = (method: PaymentMethodType) => {
   if (isSubmitting.value) return
@@ -288,8 +290,8 @@ const formatCurrency = (val: number) => {
                 </p>
               </div>
               <div class="flex justify-between items-center text-sm text-gray-600">
-                <p>Tax (0%)</p>
-                <p class="font-bold text-gray-400 text-right">Rp 0</p>
+                <p>PPN 11%</p>
+                <p class="font-bold text-gray-900 text-right">{{ formatCurrency(taxAmount) }}</p>
               </div>
               <div class="flex justify-between items-end border-t border-gray-200 pt-5 mt-2">
                 <p class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Total</p>

@@ -424,7 +424,7 @@ const handleVoid = async () => {
                 </p>
               </div>
               <div class="flex justify-between text-sm text-gray-600">
-                <p>Tax (11%)</p>
+                <p>PPN 11%</p>
                 <p class="font-bold text-gray-900">{{ formatCurrency(transaction.tax) }}</p>
               </div>
               

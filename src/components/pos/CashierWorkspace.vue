@@ -55,7 +55,7 @@ const subtotal = computed(() => {
 
 // Hardcoded discount and tax for phase 2
 const discount = computed(() => 0)
-const tax = computed(() => 0)
+const tax = computed(() => subtotal.value * 0.11)
 const grandTotal = computed(() => subtotal.value - discount.value + tax.value)
 
 const handleAddProduct = (product: Product) => {
@@ -175,8 +175,8 @@ const handleAddProduct = (product: Product) => {
             <span>Discount</span>
             <span class="font-medium text-gray-900">{{ formatPrice(discount) }}</span>
           </div>
-          <div class="flex justify-between items-center text-gray-500">
-            <span>Tax (0%)</span>
+          <div class="flex justify-between items-center text-sm text-gray-500">
+            <span>PPN 11%</span>
             <span class="font-medium text-gray-900">{{ formatPrice(tax) }}</span>
           </div>
           
