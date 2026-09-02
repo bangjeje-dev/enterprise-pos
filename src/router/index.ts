@@ -176,6 +176,22 @@ const router = createRouter({
           component: () => import('@/views/pos/OpenRegisterView.vue')
         },
         {
+          path: 'close-register',
+          name: 'pos-close-register',
+          component: () => import('@/views/pos/CloseRegisterView.vue'),
+          beforeEnter: async (to, from, next) => {
+            const posSession = usePosSessionStore()
+            if (!posSession.activeSession) {
+              await posSession.initializeSession()
+            }
+            if (!posSession.activeSession) {
+              next({ name: 'pos-open-register' })
+            } else {
+              next()
+            }
+          }
+        },
+        {
           path: '',
           name: 'pos',
           component: () => import('@/views/pos/PosView.vue'),

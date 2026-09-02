@@ -55,12 +55,45 @@ export const usePosSessionStore = defineStore('posSession', () => {
     }
   }
 
+  const previewCloseRegister = async () => {
+    if (!activeSession.value) throw new Error('No active session')
+    isLoading.value = true
+    error.value = null
+    try {
+      return await mockErpApi.previewCloseRegister(activeSession.value.id)
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const closeRegister = async (actualCash: number) => {
+    if (!activeSession.value) throw new Error('No active session')
+    isLoading.value = true
+    error.value = null
+    try {
+      const session = await mockErpApi.confirmCloseRegister(activeSession.value.id, actualCash)
+      activeSession.value = null
+      localStorage.removeItem('pos_active_session_id')
+      return session
+    } catch (err: any) {
+      error.value = err.message
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     activeSession,
     isLoading,
     error,
     initializeSession,
     openRegister,
+    previewCloseRegister,
+    closeRegister,
     getLocations,
     getRegisters,
     getCashiers

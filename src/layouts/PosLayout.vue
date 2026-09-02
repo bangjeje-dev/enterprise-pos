@@ -63,6 +63,15 @@ const formattedDate = ref(
       
       <!-- Right: User & Time Context -->
       <div class="flex items-center space-x-4">
+        <button 
+          @click="router.push('/pos/close-register')"
+          class="hidden sm:flex items-center text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md px-3 py-1.5 focus:outline-none transition-colors border border-red-100"
+          title="Close Register"
+          v-if="posSession.activeSession"
+        >
+          <span class="font-bold text-sm">Close Register</span>
+        </button>
+        
         <div class="hidden md:flex items-center space-x-2 text-sm text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 bg-gray-50">
           <Clock class="w-4 h-4 text-gray-400" />
           <span class="font-medium">{{ formattedDate.format(currentTime) }}</span>

@@ -164,6 +164,9 @@ export interface RegisterSession {
   openingCash: number
   openedAt: string
   closedAt?: string
+  expectedCash?: number
+  actualCash?: number
+  variance?: number
   status: RegisterSessionStatus
 }
 
@@ -275,7 +278,7 @@ export interface SalesTransaction {
   tax: number
   grandTotal: number
   paymentStatus: 'Unpaid' | 'Paid' | 'Refunded'
-  paymentMethod: 'Cash' | 'Card' | 'QRIS' | ''
+  paymentMethod: 'Cash' | 'Card' | 'QRIS' | 'Transfer' | ''
   amountReceived?: number
   changeAmount?: number
   createdAt: string
@@ -2133,6 +2136,62 @@ const api = {
     await delay(200)
     const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
     if (!session) throw new Error('Active session not found')
+    return { ...session }
+  },
+
+  async previewCloseRegister(sessionId: string) {
+    await delay(300)
+    const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
+    if (!session) throw new Error('Active session not found or already closed')
+
+    const sessionSales = salesTransactions.filter(t => t.registerSessionId === sessionId)
+    
+    let cashSales = 0
+    let cardSales = 0
+    let qrisSales = 0
+    let transferSales = 0
+
+    sessionSales.forEach(tx => {
+      if (tx.paymentMethod === 'Cash') cashSales += tx.grandTotal
+      else if (tx.paymentMethod === 'Card') cardSales += tx.grandTotal
+      else if (tx.paymentMethod === 'QRIS') qrisSales += tx.grandTotal
+      else if (tx.paymentMethod === 'Transfer') transferSales += tx.grandTotal
+    })
+
+    const expectedCash = session.openingCash + cashSales
+    const transactionCount = sessionSales.length
+
+    return {
+      session: { ...session },
+      cashSales,
+      expectedCash,
+      transactionCount,
+      paymentSummary: {
+        Cash: cashSales,
+        Card: cardSales,
+        QRIS: qrisSales,
+        Transfer: transferSales
+      }
+    }
+  },
+
+  async confirmCloseRegister(sessionId: string, actualCash: number): Promise<RegisterSession> {
+    await delay(500)
+    const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
+    if (!session) throw new Error('Active session not found or already closed')
+
+    if (typeof actualCash !== 'number' || actualCash < 0) {
+      throw new Error('Actual Cash must be a valid positive number')
+    }
+
+    const preview = await this.previewCloseRegister(sessionId)
+
+    session.status = 'CLOSED'
+    session.closedAt = new Date().toISOString()
+    session.expectedCash = preview.expectedCash
+    session.actualCash = actualCash
+    session.variance = actualCash - preview.expectedCash
+
     return { ...session }
   }
 }
