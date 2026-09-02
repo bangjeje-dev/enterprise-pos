@@ -2,9 +2,11 @@
 import { useRouter } from 'vue-router'
 import ToastContainer from '@/components/common/ToastContainer.vue'
 import { ArrowLeft, Clock, User, PackageSearch } from 'lucide-vue-next'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { usePosSessionStore } from '@/stores/posSession'
 
 const router = useRouter()
+const posSession = usePosSessionStore()
 const currentTime = ref(new Date())
 let timer: number
 
@@ -52,7 +54,9 @@ const formattedDate = ref(
           </div>
           <div>
             <h1 class="font-bold text-sm tracking-tight leading-none text-gray-900">Enterprise POS</h1>
-            <p class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Main Branch</p>
+            <p class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+              {{ posSession.activeSession?.locationName || 'Select Location' }}
+            </p>
           </div>
         </div>
       </div>
@@ -69,7 +73,9 @@ const formattedDate = ref(
             <User class="w-4 h-4" />
           </div>
           <div class="hidden sm:block">
-            <p class="text-xs font-bold leading-tight text-gray-900">Cashier 01</p>
+            <p class="text-xs font-bold leading-tight text-gray-900">
+              {{ posSession.activeSession?.cashierName || 'Not logged in' }}
+            </p>
             <p class="text-[10px] text-gray-500 uppercase tracking-wide">System (POS)</p>
           </div>
         </div>

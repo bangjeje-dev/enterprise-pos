@@ -144,6 +144,29 @@ export interface Customer {
   updatedAt: string
 }
 
+// Types from Register domain
+export interface Register {
+  id: string
+  name: string
+  locationId: string
+  status: 'Active' | 'Inactive'
+}
+
+export type RegisterSessionStatus = 'OPEN' | 'CLOSED'
+
+export interface RegisterSession {
+  id: string
+  registerId: string
+  locationId: string
+  locationName: string
+  cashierId: string
+  cashierName: string
+  openingCash: number
+  openedAt: string
+  closedAt?: string
+  status: RegisterSessionStatus
+}
+
 // Types from Inventory domain
 export interface Location {
   id: string
@@ -237,6 +260,7 @@ export interface SalesTransaction {
   id: string
   transactionNumber: string
   locationId: string
+  registerSessionId?: string
   customerId?: string
   customerNameSnapshot?: string
   loyaltyProgramIdSnapshot?: string
@@ -295,6 +319,13 @@ export interface AuthorizationContext {
 }
 
 // Mock Database State
+let registers: Register[] = [
+  { id: 'REG-01', name: 'Register 01', locationId: 'LOC-2', status: 'Active' },
+  { id: 'REG-02', name: 'Register 02', locationId: 'LOC-2', status: 'Active' }
+]
+
+let registerSessions: RegisterSession[] = []
+
 let typeProducts: TypeProduct[] = [
   { id: 'tp-1', code: 'TP-01', name: 'Mock Type Product', description: 'Neutral mock type product', status: 'Active', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' }
 ]
@@ -1653,7 +1684,7 @@ const api = {
     return newReturn
   },
 
-  async createSale(payload: { locationId: string, paymentMethod: 'Cash' | 'Card' | 'QRIS' | '', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[], customerId?: string, redeemPoints?: boolean }): Promise<SalesTransaction> {
+  async createSale(payload: { locationId: string, registerSessionId?: string, paymentMethod: 'Cash' | 'Card' | 'QRIS' | '', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[], customerId?: string, redeemPoints?: boolean }): Promise<SalesTransaction> {
     await delay()
     
     // 1. Validate locationId
@@ -1767,6 +1798,7 @@ const api = {
       id: saleId,
       transactionNumber: saleId,
       locationId: payload.locationId,
+      registerSessionId: payload.registerSessionId,
       customerId: customer?.id,
       customerNameSnapshot: customerNameSnapshot,
       loyaltyProgramIdSnapshot: loyaltyProgramIdSnapshot,
@@ -2044,6 +2076,64 @@ const api = {
   async getPointsTransactionsByCustomer(customerId: string): Promise<PointsTransaction[]> {
     await delay(200)
     return pointsTransactions.filter(pt => pt.customerId === customerId)
+  },
+
+  // Register Session API
+  async getRegisters(): Promise<Register[]> {
+    await delay(200)
+    return [...registers]
+  },
+
+  async getCashiers(): Promise<{ id: string, name: string }[]> {
+    await delay(200)
+    return customers.map(c => ({ id: c.id, name: c.name }))
+  },
+
+  async openRegister(payload: { registerId: string, locationId: string, cashierId: string, openingCash: number }): Promise<RegisterSession> {
+    await delay(500)
+    
+    const register = registers.find(r => r.id === payload.registerId)
+    if (!register) throw new Error('Register not found')
+    
+    // Check if register already has an open session
+    const existingOpenSession = registerSessions.find(s => s.registerId === payload.registerId && s.status === 'OPEN')
+    if (existingOpenSession) {
+      throw new Error('Register already has an open session')
+    }
+
+    // Check if cashier already has an open session
+    const existingCashierSession = registerSessions.find(s => s.cashierId === payload.cashierId && s.status === 'OPEN')
+    if (existingCashierSession) {
+      throw new Error('Cashier already has an open session on another register')
+    }
+
+    const cashier = customers.find(c => c.id === payload.cashierId)
+    const cashierName = cashier ? cashier.name : 'Cashier 01'
+
+    // Mock resolve location name, normally from db
+    const locationName = payload.locationId === 'LOC-2' ? 'Main Branch' : payload.locationId
+
+    const newSession: RegisterSession = {
+      id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      registerId: payload.registerId,
+      locationId: payload.locationId,
+      locationName: locationName,
+      cashierId: payload.cashierId,
+      cashierName: cashierName,
+      openingCash: payload.openingCash,
+      openedAt: new Date().toISOString(),
+      status: 'OPEN'
+    }
+
+    registerSessions.push(newSession)
+    return { ...newSession }
+  },
+
+  async getActiveSession(sessionId: string): Promise<RegisterSession> {
+    await delay(200)
+    const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
+    if (!session) throw new Error('Active session not found')
+    return { ...session }
   }
 }
 

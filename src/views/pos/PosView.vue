@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useProductStore, type Product } from '@/stores/product'
 import { useInventoryStore } from '@/stores/inventory'
 import { useSalesStore } from '@/stores/sales'
+import { usePosSessionStore } from '@/stores/posSession'
 import { useToast } from '@/composables/useToast'
 import ProductSearch from '@/components/pos/ProductSearch.vue'
 import ProductGrid from '@/components/pos/ProductGrid.vue'
@@ -19,8 +20,10 @@ const inventoryStore = useInventoryStore()
 const salesStore = useSalesStore()
 const { showToast } = useToast()
 
-// Location (Hardcoded to LOC-2 as per instructions for now, representing current location)
-const currentLocationId = 'LOC-2'
+const posSession = usePosSessionStore()
+
+// Location
+const currentLocationId = computed(() => posSession.activeSession?.locationId || 'LOC-2')
 
 const searchQuery = ref('')
 const activeCategory = ref('All')
@@ -69,7 +72,7 @@ const filteredProducts = computed(() => {
   
   return filtered.map(product => {
     const inv = inventoryStore.inventoryBalances.find(
-      i => i.productId === product.id && i.locationId === currentLocationId
+      i => i.productId === product.id && i.locationId === currentLocationId.value
     )
     const availableStock = inv ? (inv.currentStock - inv.reservedStock) : 0
     return { product, availableStock }
@@ -129,7 +132,7 @@ const handleModifierSelectionConfirm = (modifiers: SelectedModifier[]) => {
 
 const addCartItemWithModifiers = (product: Product, modifiers?: SelectedModifier[]) => {
   // Check available stock first
-  const balance = inventoryStore.inventoryBalances.find(b => b.productId === product.id && b.locationId === currentLocationId)
+  const balance = inventoryStore.inventoryBalances.find(b => b.productId === product.id && b.locationId === currentLocationId.value)
   const currentStock = balance ? balance.currentStock : 0
   const reservedStock = balance ? balance.reservedStock : 0
   const availableStock = currentStock - reservedStock

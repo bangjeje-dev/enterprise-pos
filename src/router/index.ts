@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import { usePosSessionStore } from '@/stores/posSession'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -170,9 +171,25 @@ const router = createRouter({
       component: () => import('@/layouts/PosLayout.vue'),
       children: [
         {
+          path: 'open-register',
+          name: 'pos-open-register',
+          component: () => import('@/views/pos/OpenRegisterView.vue')
+        },
+        {
           path: '',
           name: 'pos',
-          component: () => import('@/views/pos/PosView.vue')
+          component: () => import('@/views/pos/PosView.vue'),
+          beforeEnter: async (to, from, next) => {
+            const posSession = usePosSessionStore()
+            if (!posSession.activeSession) {
+              await posSession.initializeSession()
+            }
+            if (!posSession.activeSession) {
+              next({ name: 'pos-open-register' })
+            } else {
+              next()
+            }
+          }
         }
       ]
     },
