@@ -7,16 +7,7 @@ import { useProductStore } from '@/stores/product'
 import { useProductSkuStore } from '@/stores/productSku'
 import { useTypeProductStore } from '@/stores/typeProduct'
 import { 
-  ArrowLeft, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  MapPin, 
-  User, 
-  FileText, 
-  AlertCircle,
-  ClipboardList,
-  Play
+  ArrowLeft, Search, FileDown, EyeOff, Save, CheckCircle2, FileText, AlertCircle, RefreshCw
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -202,8 +193,14 @@ const reviewSummary = computed(() => {
   const items = so.value.items || []
   const totalSku = items.length
   const counted = items.filter(i => i.physicalQty !== undefined).length
-  const match = items.filter(i => i.physicalQty !== undefined && i.physicalQty === i.systemQty).length
-  const variance = items.filter(i => i.physicalQty !== undefined && i.physicalQty !== i.systemQty).length
+  const match = items.filter(i => {
+    const qty = i.finalPhysicalQty !== undefined ? i.finalPhysicalQty : i.physicalQty
+    return qty !== undefined && qty === i.systemQty
+  }).length
+  const variance = items.filter(i => {
+    const qty = i.finalPhysicalQty !== undefined ? i.finalPhysicalQty : i.physicalQty
+    return qty !== undefined && qty !== i.systemQty
+  }).length
   return { totalSku, counted, match, variance }
 })
 
@@ -215,7 +212,9 @@ const enrichedItems = computed(() => {
     return {
       ...item,
       skuCode: sku?.sku || item.skuId,
-      productName: master?.name || 'Unknown Product'
+      productName: master?.name || 'Unknown Product',
+      sku,
+      product: master
     }
   })
 })
@@ -243,27 +242,71 @@ const canSubmitCount = computed(() => {
 
 const submitCount = async () => {
   if (!so.value) return
-  if (!canSubmitCount.value) {
-    submitError.value = "All items must be counted before submission."
-    return
-  }
-  
-  submitError.value = null
   isSubmitting.value = true
-  
-  const payload = so.value.items.map(item => ({
-    id: item.id,
-    physicalQty: countingForm.value[item.id] as number
-  }))
-  
   try {
-    await stockOpnameStore.submitCount(so.value.id, payload, 'System')
-  } catch (e: any) {
-    submitError.value = e.message || "Failed to submit count"
+    const payload = Object.entries(countingForm).map(([id, qty]) => ({
+      id,
+      physicalQty: qty
+    }))
+    await stockOpnameStore.submitCount(so.value.id, payload, 'System User')
+  } catch (error: any) {
+    alert(error.message || 'Failed to submit count')
   } finally {
     isSubmitting.value = false
   }
 }
+
+// Recount Workflow
+const isRecountModalOpen = ref(false)
+const isSubmittingRecount = ref(false)
+const recountItem = ref<any>(null)
+const recountQty = ref('')
+const recountReason = ref('')
+
+let previousRecountQty = ''
+const onRecountQtyInput = (e: Event) => {
+  const val = (e.target as HTMLInputElement).value
+  if (val === '') {
+    previousRecountQty = ''
+    return
+  }
+  if (/^\d+$/.test(val)) {
+    previousRecountQty = val
+  } else {
+    recountQty.value = previousRecountQty
+  }
+}
+
+const openRecountModal = (item: any) => {
+  recountItem.value = item
+  recountQty.value = ''
+  recountReason.value = ''
+  previousRecountQty = ''
+  isRecountModalOpen.value = true
+}
+
+const closeRecountModal = () => {
+  isRecountModalOpen.value = false
+  recountItem.value = null
+}
+
+const submitRecountResult = async () => {
+  if (!recountItem.value || !so.value) return
+  if (recountQty.value === '' || !recountReason.value.trim()) return
+  
+  isSubmittingRecount.value = true
+  try {
+    const qty = parseInt(recountQty.value, 10)
+    await stockOpnameStore.requestRecount(so.value.id, { itemIds: [recountItem.value.id], reason: recountReason.value }, 'System (Reviewer)')
+    await stockOpnameStore.submitRecount(so.value.id, [{ id: recountItem.value.id, recountPhysicalQty: qty }], 'System (Reviewer)')
+    closeRecountModal()
+  } catch (error: any) {
+    alert(error.message || 'Failed to submit recount')
+  } finally {
+    isSubmittingRecount.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -449,6 +492,13 @@ const submitCount = async () => {
                         placeholder="-"
                       />
                     </div>
+                    <div v-else-if="so.status === 'REVIEW'" class="font-medium">
+                      <div v-if="item.recountedAt" class="flex flex-col items-end">
+                        <span class="text-xs text-gray-500 line-through" title="First Count">{{ item.physicalQty }}</span>
+                        <span class="font-medium text-gray-900" title="Final Recount">{{ item.finalPhysicalQty }}</span>
+                      </div>
+                      <span v-else>{{ item.physicalQty !== undefined ? item.physicalQty : '-' }}</span>
+                    </div>
                     <div v-else class="font-medium">
                       {{ item.physicalQty !== undefined ? item.physicalQty : '-' }}
                     </div>
@@ -462,7 +512,12 @@ const submitCount = async () => {
                       <span v-else class="text-gray-400 font-normal">Not Counted</span>
                     </template>
                     <template v-else>
-                      <span v-if="item.physicalQty !== undefined" :class="{'text-red-600': (item.physicalQty - item.systemQty) !== 0, 'text-green-600': (item.physicalQty - item.systemQty) === 0}">
+                      <div v-if="item.recountedAt">
+                        <span v-if="item.finalPhysicalQty !== undefined" :class="{'text-red-600': (item.finalPhysicalQty - item.systemQty) !== 0, 'text-green-600': (item.finalPhysicalQty - item.systemQty) === 0}">
+                          {{ (item.finalPhysicalQty - item.systemQty) > 0 ? '+' : '' }}{{ item.finalPhysicalQty - item.systemQty }}
+                        </span>
+                      </div>
+                      <span v-else-if="item.physicalQty !== undefined" :class="{'text-red-600': (item.physicalQty - item.systemQty) !== 0, 'text-green-600': (item.physicalQty - item.systemQty) === 0}">
                         {{ (item.physicalQty - item.systemQty) > 0 ? '+' : '' }}{{ item.physicalQty - item.systemQty }}
                       </span>
                       <span v-else class="text-gray-500">-</span>
@@ -479,12 +534,22 @@ const submitCount = async () => {
                       </span>
                     </template>
                     <template v-else-if="so.status === 'REVIEW'">
-                      <span v-if="item.physicalQty === item.systemQty" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                        Match
-                      </span>
-                      <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                        Variance
-                      </span>
+                      <template v-if="item.recountedAt">
+                        <span v-if="item.finalPhysicalQty === item.systemQty" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          Match <span class="ml-1 text-[10px] opacity-75">(Recounted)</span>
+                        </span>
+                        <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          Variance <span class="ml-1 text-[10px] opacity-75">(Recounted)</span>
+                        </span>
+                      </template>
+                      <template v-else>
+                        <span v-if="item.physicalQty === item.systemQty" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          Match
+                        </span>
+                        <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          Variance
+                        </span>
+                      </template>
                     </template>
                     <template v-else>
                       <span v-if="item.recountRequired" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
@@ -500,7 +565,11 @@ const submitCount = async () => {
                   </td>
                   
                   <td v-if="so.status === 'REVIEW'" class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                    <button v-if="item.physicalQty !== undefined && item.physicalQty !== item.systemQty" disabled class="text-blue-400 text-xs font-medium cursor-not-allowed" title="Recount will be available in next phase">
+                    <button 
+                      v-if="(item.finalPhysicalQty !== undefined ? item.finalPhysicalQty : item.physicalQty) !== item.systemQty"
+                      @click="openRecountModal(item)"
+                      class="text-blue-600 hover:text-blue-900 font-medium cursor-pointer"
+                    >
                       Recount
                     </button>
                     <span v-else class="text-gray-300">-</span>
@@ -627,6 +696,68 @@ const submitCount = async () => {
           </div>
         </div>
         
+      </div>
+    </div>
+    <!-- Recount Modal -->
+    <div v-if="isRecountModalOpen" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="closeRecountModal"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                <RefreshCw class="h-6 w-6 text-blue-600" />
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                  Recount Item
+                </h3>
+                <div class="mt-4 space-y-3">
+                  <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div class="text-gray-500">SKU</div>
+                    <div class="font-medium text-gray-900">{{ recountItem?.sku?.sku }}</div>
+                    
+                    <div class="text-gray-500">Product</div>
+                    <div class="font-medium text-gray-900">{{ recountItem?.product?.name }}</div>
+                    
+                    <div class="text-gray-500">System Qty</div>
+                    <div class="font-medium text-gray-900">{{ recountItem?.systemQty }}</div>
+                    
+                    <div class="text-gray-500">First Count</div>
+                    <div class="font-medium text-gray-900">{{ recountItem?.physicalQty }}</div>
+                    
+                    <div class="text-gray-500">First Variance</div>
+                    <div class="font-medium text-red-600">{{ recountItem?.physicalQty - recountItem?.systemQty }}</div>
+                  </div>
+
+                  <div class="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700">Recount Qty</label>
+                      <input type="text" v-model="recountQty" @input="onRecountQtyInput" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Enter recount quantity" />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700">Reason <span class="text-red-500">*</span></label>
+                      <input type="text" v-model="recountReason" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g. Count mismatch" />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700">Notes</label>
+                      <input type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Optional notes" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button type="button" @click="submitRecountResult" :disabled="isSubmittingRecount || !recountReason.trim() || recountQty === ''" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50">
+              Submit Recount
+            </button>
+            <button type="button" @click="closeRecountModal" :disabled="isSubmittingRecount" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
