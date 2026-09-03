@@ -85,6 +85,21 @@ const router = createRouter({
           component: () => import('@/views/inventory/InventoryListView.vue')
         },
         {
+          path: 'inventory/stock-opname',
+          name: 'inventory-stock-opname',
+          component: () => import('@/views/inventory/StockOpnameListView.vue')
+        },
+        {
+          path: 'inventory/stock-opname/new',
+          name: 'inventory-stock-opname-new',
+          component: () => import('@/views/inventory/StockOpnameCreateView.vue')
+        },
+        {
+          path: 'inventory/stock-opname/:id',
+          name: 'inventory-stock-opname-detail',
+          component: () => import('@/views/inventory/StockOpnameDetailView.vue')
+        },
+        {
           path: 'inventory/adjustments',
           name: 'inventory-adjustments',
           component: () => import('@/views/inventory/StockAdjustmentsView.vue')
