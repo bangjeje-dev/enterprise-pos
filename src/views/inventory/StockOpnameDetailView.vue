@@ -197,6 +197,16 @@ const summary = computed(() => {
   return { total, counted, remaining, variance, recountReq }
 })
 
+const reviewSummary = computed(() => {
+  if (!so.value || so.value.status !== 'REVIEW') return null
+  const items = so.value.items || []
+  const totalSku = items.length
+  const counted = items.filter(i => i.physicalQty !== undefined).length
+  const match = items.filter(i => i.physicalQty !== undefined && i.physicalQty === i.systemQty).length
+  const variance = items.filter(i => i.physicalQty !== undefined && i.physicalQty !== i.systemQty).length
+  return { totalSku, counted, match, variance }
+})
+
 const enrichedItems = computed(() => {
   if (!so.value || !so.value.items) return []
   return so.value.items.map(item => {
@@ -410,6 +420,7 @@ const submitCount = async () => {
                   <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Physical Qty</th>
                   <th v-if="!(so.status === 'COUNTING' && so.countingMode === 'BLIND')" scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variance</th>
                   <th scope="col" class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th v-if="so.status === 'REVIEW'" scope="col" class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
@@ -451,9 +462,10 @@ const submitCount = async () => {
                       <span v-else class="text-gray-400 font-normal">Not Counted</span>
                     </template>
                     <template v-else>
-                      <span :class="{'text-red-600': item.variance && item.variance !== 0, 'text-green-600': item.variance === 0, 'text-gray-500': item.variance === undefined}">
-                        {{ item.variance !== undefined ? (item.variance > 0 ? '+' : '') + item.variance : '-' }}
+                      <span v-if="item.physicalQty !== undefined" :class="{'text-red-600': (item.physicalQty - item.systemQty) !== 0, 'text-green-600': (item.physicalQty - item.systemQty) === 0}">
+                        {{ (item.physicalQty - item.systemQty) > 0 ? '+' : '' }}{{ item.physicalQty - item.systemQty }}
                       </span>
+                      <span v-else class="text-gray-500">-</span>
                     </template>
                   </td>
                   
@@ -464,6 +476,14 @@ const submitCount = async () => {
                       </span>
                       <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                         Pending
+                      </span>
+                    </template>
+                    <template v-else-if="so.status === 'REVIEW'">
+                      <span v-if="item.physicalQty === item.systemQty" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Match
+                      </span>
+                      <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                        Variance
                       </span>
                     </template>
                     <template v-else>
@@ -477,6 +497,13 @@ const submitCount = async () => {
                         Pending
                       </span>
                     </template>
+                  </td>
+                  
+                  <td v-if="so.status === 'REVIEW'" class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                    <button v-if="item.physicalQty !== undefined && item.physicalQty !== item.systemQty" disabled class="text-blue-400 text-xs font-medium cursor-not-allowed" title="Recount will be available in next phase">
+                      Recount
+                    </button>
+                    <span v-else class="text-gray-300">-</span>
                   </td>
                 </tr>
               </tbody>
@@ -498,7 +525,25 @@ const submitCount = async () => {
             <h3 class="text-lg font-bold text-gray-900">Summary</h3>
           </div>
           <div class="p-6">
-            <div class="space-y-4">
+            <div v-if="so.status === 'REVIEW' && reviewSummary" class="space-y-4">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Total SKU</span>
+                <span class="font-bold text-gray-900">{{ reviewSummary.totalSku }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Counted</span>
+                <span class="font-bold text-gray-900">{{ reviewSummary.counted }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Match</span>
+                <span class="font-bold text-green-600">{{ reviewSummary.match }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Variance</span>
+                <span class="font-bold text-red-600">{{ reviewSummary.variance }}</span>
+              </div>
+            </div>
+            <div v-else class="space-y-4">
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Total SKUs Scope</span>
                 <span class="font-bold text-gray-900">{{ summary.total }}</span>
@@ -561,6 +606,17 @@ const submitCount = async () => {
                 <span v-if="isSubmitting" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
                 <CheckCircle2 v-else class="w-4 h-4 mr-2" />
                 Submit Count
+              </button>
+            </div>
+            
+            <div v-else-if="so.status === 'REVIEW'">
+              <button 
+                disabled
+                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-purple-600 focus:outline-none transition-colors disabled:bg-purple-400 disabled:cursor-not-allowed"
+                title="Approval workflow will be implemented in the next phase"
+              >
+                <CheckCircle2 class="w-4 h-4 mr-2" />
+                Submit for Approval
               </button>
             </div>
             
