@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import { useStockOpnameStore } from '@/stores/stockOpname'
 import { useTypeProductStore } from '@/stores/typeProduct'
-import { ArrowLeft, Save, Loader2, ListPlus } from '@lucide/vue'
+import { useProductSkuStore } from '@/stores/productSku'
+import { ArrowLeft, Save, Loader2, ListPlus, X } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
-import SkuSelectionModal from '@/components/inventory/stock-opname/SkuSelectionModal.vue'
-import type { StockOpnameType, StockOpnameCountingMode } from '@/services/mockErpApi'
 
 const router = useRouter()
 const inventoryStore = useInventoryStore()
@@ -15,19 +14,9 @@ const stockOpnameStore = useStockOpnameStore()
 const typeProductStore = useTypeProductStore()
 const { showToast } = useToast()
 
-// Form State
-const locationId = ref('')
-const type = ref<StockOpnameType>('FULL')
-const countingMode = ref<StockOpnameCountingMode>('NORMAL')
-const scheduledAt = ref('')
-
-// Scope State
-const selectedSkus = ref<string[]>([])
-const selectedTypeProduct = ref('')
-const cycleCountMethod = ref<'TYPE' | 'SKU'>('TYPE')
+const draft = stockOpnameStore.draftForm
 
 const isSubmitting = ref(false)
-const showSkuModal = ref(false)
 
 onMounted(async () => {
   await Promise.all([
@@ -38,17 +27,17 @@ onMounted(async () => {
 
 // Validation
 const isValid = computed(() => {
-  if (!locationId.value) return false
-  if (!type.value) return false
-  if (!countingMode.value) return false
+  if (!draft.locationId) return false
+  if (!draft.type) return false
+  if (!draft.countingMode) return false
   
-  if (type.value === 'PARTIAL' || type.value === 'SPOT_CHECK') {
-    if (selectedSkus.value.length === 0) return false
+  if (draft.type === 'PARTIAL' || draft.type === 'SPOT_CHECK') {
+    if (draft.selectedSkus.length === 0) return false
   }
   
-  if (type.value === 'CYCLE_COUNT') {
-    if (cycleCountMethod.value === 'TYPE' && !selectedTypeProduct.value) return false
-    if (cycleCountMethod.value === 'SKU' && selectedSkus.value.length === 0) return false
+  if (draft.type === 'CYCLE_COUNT') {
+    if (draft.cycleCountMethod === 'TYPE' && !draft.selectedTypeProduct) return false
+    if (draft.cycleCountMethod === 'SKU' && draft.selectedSkus.length === 0) return false
   }
   
   return true
@@ -56,11 +45,23 @@ const isValid = computed(() => {
 
 const handleTypeChange = () => {
   // Reset scopes when type changes to prevent carrying over invalid state
-  selectedSkus.value = []
-  selectedTypeProduct.value = ''
-  if (type.value === 'CYCLE_COUNT') {
-    cycleCountMethod.value = 'TYPE'
+  draft.selectedSkus = []
+  draft.selectedTypeProduct = ''
+  if (draft.type === 'CYCLE_COUNT') {
+    draft.cycleCountMethod = 'TYPE'
   }
+}
+
+const navigateToSkuSelection = () => {
+  if (!draft.locationId) {
+    showToast('Location Required', 'Please select a Location before choosing SKUs.', 'error')
+    return
+  }
+  router.push('/inventory/stock-opname/select-skus')
+}
+
+const removeSku = (skuId: string) => {
+  draft.selectedSkus = draft.selectedSkus.filter(id => id !== skuId)
 }
 
 const saveAsDraft = async () => {
@@ -68,24 +69,35 @@ const saveAsDraft = async () => {
   
   isSubmitting.value = true
   try {
-    const scopePayload: any = { locationId: locationId.value }
+    const scopePayload: any = { locationId: draft.locationId }
     
-    if (type.value === 'PARTIAL' || type.value === 'SPOT_CHECK' || (type.value === 'CYCLE_COUNT' && cycleCountMethod.value === 'SKU')) {
-      scopePayload.skuIds = [...selectedSkus.value]
-    } else if (type.value === 'CYCLE_COUNT' && cycleCountMethod.value === 'TYPE') {
-      scopePayload.typeProductIds = [selectedTypeProduct.value]
+    if (draft.type === 'PARTIAL' || draft.type === 'SPOT_CHECK' || (draft.type === 'CYCLE_COUNT' && draft.cycleCountMethod === 'SKU')) {
+      scopePayload.skuIds = [...draft.selectedSkus]
+    } else if (draft.type === 'CYCLE_COUNT' && draft.cycleCountMethod === 'TYPE') {
+      scopePayload.typeProductIds = [draft.selectedTypeProduct]
     }
     
     const payload = {
-      type: type.value,
+      type: draft.type as any,
       scope: scopePayload,
-      countingMode: countingMode.value,
-      scheduledAt: scheduledAt.value ? new Date(scheduledAt.value).toISOString() : undefined,
+      countingMode: draft.countingMode as any,
+      scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : undefined,
       createdBy: 'Current User' // Mock user
     }
     
     const created = await stockOpnameStore.createStockOpname(payload)
     
+    // Clear draft form
+    stockOpnameStore.draftForm = {
+      locationId: '',
+      type: 'FULL',
+      countingMode: 'NORMAL',
+      scheduledAt: '',
+      selectedSkus: [],
+      selectedTypeProduct: '',
+      cycleCountMethod: 'TYPE'
+    }
+
     showToast('Stock Opname Created', 'Stock Opname has been saved as Draft.', 'success')
     router.push(`/inventory/stock-opname/${created.id}`)
   } catch (error: any) {
@@ -94,6 +106,33 @@ const saveAsDraft = async () => {
     isSubmitting.value = false
   }
 }
+
+const handleCancel = () => {
+  // Clear draft form
+  stockOpnameStore.draftForm = {
+    locationId: '',
+    type: 'FULL',
+    countingMode: 'NORMAL',
+    scheduledAt: '',
+    selectedSkus: [],
+    selectedTypeProduct: '',
+    cycleCountMethod: 'TYPE'
+  }
+  router.push('/inventory/stock-opname')
+}
+
+const skuStore = useProductSkuStore()
+onMounted(() => {
+  if (skuStore.productSkus.length === 0) {
+    skuStore.fetchProductSkus()
+  }
+})
+const displaySelectedSkus = computed(() => {
+  return draft.selectedSkus.map(id => {
+    const sku = skuStore.productSkus.find((s: any) => s.id === id)
+    return { id, sku: sku?.sku || id }
+  })
+})
 </script>
 
 <template>
@@ -101,17 +140,17 @@ const saveAsDraft = async () => {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
       <div class="flex items-center space-x-4">
-        <router-link to="/inventory/stock-opname" class="p-2 -ml-2 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100">
+        <button @click="handleCancel" class="p-2 -ml-2 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100">
           <ArrowLeft class="w-6 h-6" />
-        </router-link>
+        </button>
         <div>
           <h1 class="text-2xl font-semibold text-gray-900 tracking-tight">New Stock Opname</h1>
         </div>
       </div>
       <div class="mt-4 sm:mt-0 flex space-x-3">
-        <router-link to="/inventory/stock-opname" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:outline-none focus:ring-gray-200">
+        <button @click="handleCancel" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:outline-none focus:ring-gray-200">
           Cancel
-        </router-link>
+        </button>
         <button 
           @click="saveAsDraft" 
           :disabled="!isValid || isSubmitting" 
@@ -142,13 +181,13 @@ const saveAsDraft = async () => {
             <!-- Scheduled Date -->
             <div>
               <label class="block mb-2 text-sm font-medium text-gray-900">Scheduled Date <span class="text-gray-400 font-normal">(Optional)</span></label>
-              <input v-model="scheduledAt" type="date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <input v-model="draft.scheduledAt" type="date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
             </div>
 
             <!-- Location -->
             <div class="md:col-span-2">
               <label class="block mb-2 text-sm font-medium text-gray-900">Location <span class="text-red-500">*</span></label>
-              <select v-model="locationId" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <select v-model="draft.locationId" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                 <option value="" disabled>Select a location</option>
                 <option v-for="loc in inventoryStore.locations" :key="loc.id" :value="loc.id">
                   {{ loc.name }}
@@ -159,7 +198,7 @@ const saveAsDraft = async () => {
             <!-- Type -->
             <div class="md:col-span-2">
               <label class="block mb-2 text-sm font-medium text-gray-900">Stock Opname Type <span class="text-red-500">*</span></label>
-              <select v-model="type" @change="handleTypeChange" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+              <select v-model="draft.type" @change="handleTypeChange" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                 <option value="FULL">Full Stock Opname</option>
                 <option value="PARTIAL">Partial Stock Opname</option>
                 <option value="CYCLE_COUNT">Cycle Count</option>
@@ -172,14 +211,14 @@ const saveAsDraft = async () => {
               <label class="block mb-3 text-sm font-medium text-gray-900">Counting Mode <span class="text-red-500">*</span></label>
               <div class="flex flex-col sm:flex-row gap-4">
                 <div class="flex items-center p-4 border border-gray-200 rounded-lg bg-gray-50 flex-1">
-                  <input id="mode-normal" v-model="countingMode" type="radio" value="NORMAL" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500">
+                  <input id="mode-normal" v-model="draft.countingMode" type="radio" value="NORMAL" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500">
                   <label for="mode-normal" class="ml-3 flex flex-col cursor-pointer">
                     <span class="text-sm font-medium text-gray-900">Normal Counting</span>
                     <span class="text-xs text-gray-500">Counter can see system quantities.</span>
                   </label>
                 </div>
                 <div class="flex items-center p-4 border border-gray-200 rounded-lg bg-gray-50 flex-1">
-                  <input id="mode-blind" v-model="countingMode" type="radio" value="BLIND" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500">
+                  <input id="mode-blind" v-model="draft.countingMode" type="radio" value="BLIND" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500">
                   <label for="mode-blind" class="ml-3 flex flex-col cursor-pointer">
                     <span class="text-sm font-medium text-gray-900">Blind Counting</span>
                     <span class="text-xs text-gray-500">System quantities are hidden.</span>
@@ -196,71 +235,95 @@ const saveAsDraft = async () => {
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Scope Definition</h3>
           <p class="text-sm text-gray-500 mb-6">Define which items will be included in this stock opname.</p>
           
-          <div v-if="!locationId" class="p-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 flex items-start">
+          <div v-if="!draft.locationId" class="p-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 flex items-start">
             <span class="font-medium">Notice:</span>
             <span class="ml-2">Please select a Location first.</span>
           </div>
 
           <div v-else>
             <!-- FULL -->
-            <div v-if="type === 'FULL'" class="p-4 text-sm text-blue-800 rounded-lg bg-blue-50">
+            <div v-if="draft.type === 'FULL'" class="p-4 text-sm text-blue-800 rounded-lg bg-blue-50">
               <span class="font-medium">Full Scope:</span> All eligible SKUs at the selected location will be included automatically when counting starts.
             </div>
 
             <!-- PARTIAL or SPOT_CHECK -->
-            <div v-else-if="type === 'PARTIAL' || type === 'SPOT_CHECK'" class="space-y-4">
+            <div v-else-if="draft.type === 'PARTIAL' || draft.type === 'SPOT_CHECK'" class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
                   <h4 class="text-sm font-medium text-gray-900">Selected SKUs</h4>
-                  <p class="text-xs text-gray-500 mt-1">{{ selectedSkus.length }} SKU(s) chosen for counting.</p>
+                  <p class="text-xs text-gray-500 mt-1">{{ draft.selectedSkus.length }} SKU(s) chosen for counting.</p>
                 </div>
-                <button @click="showSkuModal = true" type="button" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                <button @click="navigateToSkuSelection" type="button" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                   <ListPlus class="w-4 h-4 mr-2 text-gray-500" />
                   Select SKUs
                 </button>
               </div>
-              <div v-if="selectedSkus.length === 0" class="text-sm text-red-600">
+              <div v-if="draft.selectedSkus.length === 0" class="text-sm text-red-600">
                 At least one SKU must be selected.
+              </div>
+              <div v-else-if="draft.selectedSkus.length > 0" class="flex flex-wrap gap-2 mt-3">
+                <span v-for="item in displaySelectedSkus.slice(0, 5)" :key="item.id" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  {{ item.sku }}
+                  <button @click="removeSku(item.id)" type="button" class="ml-1.5 flex-shrink-0 inline-flex items-center justify-center text-blue-400 hover:bg-blue-200 hover:text-blue-500 rounded-full h-4 w-4 focus:outline-none">
+                    <span class="sr-only">Remove SKU</span>
+                    <X class="h-3 w-3" />
+                  </button>
+                </span>
+                <span v-if="draft.selectedSkus.length > 5" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                  +{{ draft.selectedSkus.length - 5 }} more
+                </span>
               </div>
             </div>
 
             <!-- CYCLE COUNT -->
-            <div v-else-if="type === 'CYCLE_COUNT'" class="space-y-6">
+            <div v-else-if="draft.type === 'CYCLE_COUNT'" class="space-y-6">
               <div class="flex space-x-6">
                 <div class="flex items-center">
-                  <input id="cycle-type" v-model="cycleCountMethod" type="radio" value="TYPE" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                  <input id="cycle-type" v-model="draft.cycleCountMethod" type="radio" value="TYPE" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
                   <label for="cycle-type" class="ml-2 text-sm font-medium text-gray-900 cursor-pointer">By Type Product</label>
                 </div>
                 <div class="flex items-center">
-                  <input id="cycle-sku" v-model="cycleCountMethod" type="radio" value="SKU" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                  <input id="cycle-sku" v-model="draft.cycleCountMethod" type="radio" value="SKU" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
                   <label for="cycle-sku" class="ml-2 text-sm font-medium text-gray-900 cursor-pointer">By Specific SKUs</label>
                 </div>
               </div>
 
-              <div v-if="cycleCountMethod === 'TYPE'">
+              <div v-if="draft.cycleCountMethod === 'TYPE'">
                 <label class="block mb-2 text-sm font-medium text-gray-900">Type Product <span class="text-red-500">*</span></label>
-                <select v-model="selectedTypeProduct" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                <select v-model="draft.selectedTypeProduct" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                   <option value="" disabled>Select a Type Product</option>
                   <option v-for="tp in typeProductStore.activeTypeProducts" :key="tp.id" :value="tp.id">
                     {{ tp.name }}
                   </option>
                 </select>
-                <p v-if="!selectedTypeProduct" class="text-sm text-red-600 mt-2">A Type Product must be selected.</p>
+                <p v-if="!draft.selectedTypeProduct" class="text-sm text-red-600 mt-2">A Type Product must be selected.</p>
               </div>
 
               <div v-else class="space-y-4">
                 <div class="flex items-center justify-between">
                   <div>
                     <h4 class="text-sm font-medium text-gray-900">Selected SKUs</h4>
-                    <p class="text-xs text-gray-500 mt-1">{{ selectedSkus.length }} SKU(s) chosen for cycle count.</p>
+                    <p class="text-xs text-gray-500 mt-1">{{ draft.selectedSkus.length }} SKU(s) chosen for cycle count.</p>
                   </div>
-                  <button @click="showSkuModal = true" type="button" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                  <button @click="navigateToSkuSelection" type="button" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                     <ListPlus class="w-4 h-4 mr-2 text-gray-500" />
                     Select SKUs
                   </button>
                 </div>
-                <div v-if="selectedSkus.length === 0" class="text-sm text-red-600">
+                <div v-if="draft.selectedSkus.length === 0" class="text-sm text-red-600">
                   At least one SKU must be selected.
+                </div>
+                <div v-else-if="draft.selectedSkus.length > 0" class="flex flex-wrap gap-2 mt-3">
+                  <span v-for="item in displaySelectedSkus.slice(0, 5)" :key="item.id" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    {{ item.sku }}
+                    <button @click="removeSku(item.id)" type="button" class="ml-1.5 flex-shrink-0 inline-flex items-center justify-center text-blue-400 hover:bg-blue-200 hover:text-blue-500 rounded-full h-4 w-4 focus:outline-none">
+                      <span class="sr-only">Remove SKU</span>
+                      <X class="h-3 w-3" />
+                    </button>
+                  </span>
+                  <span v-if="draft.selectedSkus.length > 5" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    +{{ draft.selectedSkus.length - 5 }} more
+                  </span>
                 </div>
               </div>
             </div>
@@ -285,10 +348,7 @@ const saveAsDraft = async () => {
       
     </div>
   </div>
-
-  <SkuSelectionModal 
-    v-model="selectedSkus"
-    :is-open="showSkuModal"
-    @close="showSkuModal = false"
-  />
 </template>
+<script lang="ts">
+import { ref } from 'vue'
+</script>

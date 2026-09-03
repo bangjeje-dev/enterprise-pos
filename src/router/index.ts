@@ -95,6 +95,11 @@ const router = createRouter({
           component: () => import('@/views/inventory/StockOpnameCreateView.vue')
         },
         {
+          path: 'inventory/stock-opname/select-skus',
+          name: 'inventory-stock-opname-select-skus',
+          component: () => import('@/views/inventory/StockOpnameSkuSelectionView.vue')
+        },
+        {
           path: 'inventory/stock-opname/:id',
           name: 'inventory-stock-opname-detail',
           component: () => import('@/views/inventory/StockOpnameDetailView.vue')

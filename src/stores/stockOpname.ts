@@ -9,6 +9,25 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
+  // Draft form state for Create Stock Opname
+  const draftForm = ref<{
+    locationId: string
+    type: StockOpnameType | ''
+    countingMode: StockOpnameCountingMode | ''
+    scheduledAt: string
+    selectedSkus: string[]
+    selectedTypeProduct: string
+    cycleCountMethod: 'TYPE' | 'SKU'
+  }>({
+    locationId: '',
+    type: 'FULL',
+    countingMode: 'NORMAL',
+    scheduledAt: '',
+    selectedSkus: [],
+    selectedTypeProduct: '',
+    cycleCountMethod: 'TYPE'
+  })
+
   async function fetchStockOpnames() {
     isLoading.value = true
     error.value = null
@@ -216,6 +235,7 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
     submitForApproval,
     approveStockOpname,
     rejectStockOpname,
-    closeStockOpname
+    closeStockOpname,
+    draftForm
   }
 })
