@@ -189,7 +189,7 @@ const summary = computed(() => {
 })
 
 const reviewSummary = computed(() => {
-  if (!so.value || so.value.status !== 'REVIEW') return null
+  if (!so.value || !['REVIEW', 'PENDING_APPROVAL'].includes(so.value.status)) return null
   const items = so.value.items || []
   const totalSku = items.length
   const counted = items.filter(i => i.physicalQty !== undefined).length
@@ -304,6 +304,23 @@ const submitRecountResult = async () => {
     alert(error.message || 'Failed to submit recount')
   } finally {
     isSubmittingRecount.value = false
+  }
+}
+
+// Approval Workflow
+const isSubmittingApproval = ref(false)
+const approvalError = ref<string | null>(null)
+
+const submitForApproval = async () => {
+  if (!so.value) return
+  isSubmittingApproval.value = true
+  approvalError.value = null
+  try {
+    await stockOpnameStore.submitForApproval(so.value.id, 'System User')
+  } catch (error: any) {
+    approvalError.value = error.message || 'Failed to submit for approval'
+  } finally {
+    isSubmittingApproval.value = false
   }
 }
 
@@ -492,7 +509,7 @@ const submitRecountResult = async () => {
                         placeholder="-"
                       />
                     </div>
-                    <div v-else-if="so.status === 'REVIEW'" class="font-medium">
+                    <div v-else-if="['REVIEW', 'PENDING_APPROVAL'].includes(so.status)" class="font-medium">
                       <div v-if="item.recountedAt" class="flex flex-col items-end">
                         <span class="text-xs text-gray-500 line-through" title="First Count">{{ item.physicalQty }}</span>
                         <span class="font-medium text-gray-900" title="Final Recount">{{ item.finalPhysicalQty }}</span>
@@ -533,7 +550,7 @@ const submitRecountResult = async () => {
                         Pending
                       </span>
                     </template>
-                    <template v-else-if="so.status === 'REVIEW'">
+                    <template v-else-if="['REVIEW', 'PENDING_APPROVAL'].includes(so.status)">
                       <template v-if="item.recountedAt">
                         <span v-if="item.finalPhysicalQty === item.systemQty" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                           Match <span class="ml-1 text-[10px] opacity-75">(Recounted)</span>
@@ -594,7 +611,7 @@ const submitRecountResult = async () => {
             <h3 class="text-lg font-bold text-gray-900">Summary</h3>
           </div>
           <div class="p-6">
-            <div v-if="so.status === 'REVIEW' && reviewSummary" class="space-y-4">
+            <div v-if="['REVIEW', 'PENDING_APPROVAL'].includes(so.status) && reviewSummary" class="space-y-4">
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Total SKU</span>
                 <span class="font-bold text-gray-900">{{ reviewSummary.totalSku }}</span>
@@ -679,14 +696,25 @@ const submitRecountResult = async () => {
             </div>
             
             <div v-else-if="so.status === 'REVIEW'">
+              <div v-if="approvalError" class="mb-4 text-sm text-red-600 bg-red-50 rounded-lg p-3 text-left">
+                <div class="flex items-start space-x-2">
+                  <AlertCircle class="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{{ approvalError }}</span>
+                </div>
+              </div>
               <button 
-                disabled
-                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-purple-600 focus:outline-none transition-colors disabled:bg-purple-400 disabled:cursor-not-allowed"
-                title="Approval workflow will be implemented in the next phase"
+                @click="submitForApproval"
+                :disabled="isSubmittingApproval"
+                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-purple-600 hover:bg-purple-700 focus:outline-none transition-colors disabled:bg-purple-400 disabled:cursor-not-allowed"
               >
-                <CheckCircle2 class="w-4 h-4 mr-2" />
+                <span v-if="isSubmittingApproval" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                <CheckCircle2 v-else class="w-4 h-4 mr-2" />
                 Submit for Approval
               </button>
+            </div>
+
+            <div v-else-if="so.status === 'PENDING_APPROVAL'">
+              <p class="text-sm text-gray-500">Waiting for approval. Workspace is read-only.</p>
             </div>
             
             <div v-else>

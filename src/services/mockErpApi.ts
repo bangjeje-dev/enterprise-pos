@@ -2529,8 +2529,17 @@ const api = {
     if (!so) throw new Error("Stock Opname not found")
     assertStockOpnameTransition(so.status, 'PENDING_APPROVAL')
 
+    const missingCount = so.items.some(i => i.physicalQty === undefined || i.physicalQty === null || (i.physicalQty as any) === '')
+    if (missingCount) throw new Error("Cannot submit for approval: some items have not been counted.")
+
+    const inRecount = so.items.some(i => i.recountRequired === true)
+    if (inRecount) throw new Error("Cannot submit for approval: some items are currently being recounted.")
+
     const oldStatus = so.status
     so.status = 'PENDING_APPROVAL'
+    so.submittedAt = new Date().toISOString()
+    so.submittedBy = userId
+
     addStockOpnameAuditLog(so.id, 'Submit For Approval', userId, oldStatus, 'PENDING_APPROVAL')
     return JSON.parse(JSON.stringify(so))
   },
