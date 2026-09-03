@@ -2406,26 +2406,37 @@ const api = {
     await delay(300)
     const so = stockOpnames.find(s => s.id === id)
     if (!so) throw new Error("Stock Opname not found")
+    
+    if (so.status === 'COUNTING') {
+      throw new Error("Stock Opname is already in COUNTING state")
+    }
     assertStockOpnameTransition(so.status, 'COUNTING')
 
-    // Snapshot logic
-    let relevantBalances = inventoryBalances.filter(b => b.locationId === so.scope.locationId)
-    if (so.scope.skuIds && so.scope.skuIds.length > 0) {
-      relevantBalances = relevantBalances.filter(b => so.scope.skuIds!.includes(b.productId)) // productId in InventoryBalance actually holds skuId
-    } else if (so.scope.typeProductIds && so.scope.typeProductIds.length > 0) {
-      // Find SKUs belonging to these TypeProducts
-      const matchingMasters = productMasters.filter(pm => pm.typeProductId && so.scope.typeProductIds!.includes(pm.typeProductId))
-      const masterIds = matchingMasters.map(pm => pm.id)
-      const matchingSkus = productSkus.filter(sku => masterIds.includes(sku.productId)).map(s => s.id)
-      relevantBalances = relevantBalances.filter(b => matchingSkus.includes(b.productId))
+    // Resolve scope
+    let resolvedSkuIds: string[] = []
+    
+    if (so.type === 'FULL') {
+      const activeTrackedMasters = new Set(productMasters.filter(pm => pm.status === 'Active' && pm.trackInventory !== false).map(pm => pm.id))
+      const activeSkus = productSkus.filter(s => s.status === 'Active' && activeTrackedMasters.has(s.productId))
+      resolvedSkuIds = activeSkus.map(s => s.id)
+    } else if (so.type === 'PARTIAL' || so.type === 'SPOT_CHECK' || (so.type === 'CYCLE_COUNT' && so.scope.skuIds && so.scope.skuIds.length > 0)) {
+      resolvedSkuIds = so.scope.skuIds || []
+    } else if (so.type === 'CYCLE_COUNT' && so.scope.typeProductIds && so.scope.typeProductIds.length > 0) {
+      const matchingMasters = new Set(productMasters.filter(pm => pm.status === 'Active' && pm.trackInventory !== false && pm.typeProductId && so.scope.typeProductIds!.includes(pm.typeProductId)).map(pm => pm.id))
+      const activeSkus = productSkus.filter(s => s.status === 'Active' && matchingMasters.has(s.productId))
+      resolvedSkuIds = activeSkus.map(s => s.id)
     }
 
-    so.items = relevantBalances.map((b, idx) => ({
-      id: `SOI-${Date.now()}-${idx}`,
-      stockOpnameId: so.id,
-      skuId: b.productId,
-      systemQty: b.currentStock
-    }))
+    // Capture System Qty Snapshot
+    so.items = resolvedSkuIds.map((skuId, idx) => {
+      const balance = inventoryBalances.find(b => b.productId === skuId && b.locationId === so.scope.locationId)
+      return {
+        id: `SOI-${Date.now()}-${idx}`,
+        stockOpnameId: so.id,
+        skuId: skuId,
+        systemQty: balance ? balance.currentStock : 0
+      }
+    })
 
     const oldStatus = so.status
     so.status = 'COUNTING'

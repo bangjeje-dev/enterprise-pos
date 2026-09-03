@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStockOpnameStore } from '@/stores/stockOpname'
 import { useInventoryStore } from '@/stores/inventory'
@@ -28,6 +28,21 @@ const skuStore = useProductSkuStore()
 const typeProductStore = useTypeProductStore()
 
 const transactionId = computed(() => route.params.id as string)
+
+const isStarting = ref(false)
+
+const startCounting = async () => {
+  if (!so.value) return
+  isStarting.value = true
+  try {
+    await stockOpnameStore.startStockOpname(so.value.id, 'System')
+  } catch (e: any) {
+    console.error("Failed to start counting", e)
+    alert(e.message || "Failed to start counting")
+  } finally {
+    isStarting.value = false
+  }
+}
 
 onMounted(async () => {
   // Load prereqs
@@ -107,20 +122,76 @@ const resolvedTypeProduct = computed(() => {
   return tp ? tp.name : typeId
 })
 
+const countingForm = ref<Record<string, number | ''>>({})
+const isSubmitting = ref(false)
+const submitError = ref<string | null>(null)
+
+// Initialize form when entering COUNTING state
+watch(() => so.value?.status, (newStatus) => {
+  if (newStatus === 'COUNTING' && so.value && so.value.items) {
+    so.value.items.forEach(item => {
+      if (countingForm.value[item.id] === undefined) {
+        countingForm.value[item.id] = ''
+      }
+    })
+  }
+}, { immediate: true })
+
+const onPhysicalQtyInput = (id: string, event: Event) => {
+  const target = event.target as HTMLInputElement
+  const val = target.value
+  
+  // Empty input is valid -> Not Counted
+  if (val === '') {
+    countingForm.value[id] = ''
+    return
+  }
+  
+  // Reject decimals, negatives, and non-numeric strings entirely.
+  // Must be composed entirely of digits (0-9).
+  if (!/^\d+$/.test(val)) {
+    // Revert visually to the last known valid state
+    const prevVal = countingForm.value[id]
+    target.value = (prevVal !== '' && prevVal !== undefined) ? prevVal.toString() : ''
+    return
+  }
+  
+  const intVal = parseInt(val, 10)
+  countingForm.value[id] = intVal
+}
+
 const summary = computed(() => {
   if (!so.value) return { total: 0, counted: 0, remaining: 0, variance: 0, recountReq: 0 }
   
   if (so.value.status === 'DRAFT') {
-    // We don't have items yet. Attempt to guess from scope if skuIds are present
     const total = so.value.scope.skuIds ? so.value.scope.skuIds.length : (so.value.type === 'FULL' ? 'All Eligible' : '?')
     return { total, counted: 0, remaining: total, variance: 0, recountReq: 0 }
   }
 
   const items = so.value.items || []
   const total = items.length
-  const counted = items.filter(i => i.physicalQty !== undefined).length
+  
+  let counted = 0
+  let variance = 0
+  
+  if (so.value.status === 'COUNTING') {
+    counted = items.filter(i => countingForm.value[i.id] !== '' && countingForm.value[i.id] !== undefined).length
+    // dynamically calc variance if not blind
+    if (so.value.countingMode !== 'BLIND') {
+      variance = items.reduce((sum, i) => {
+        const val = countingForm.value[i.id]
+        if (val !== '' && val !== undefined) {
+          return sum + Math.abs((val as number) - i.systemQty)
+        }
+        return sum
+      }, 0)
+    }
+  } else {
+    counted = items.filter(i => i.physicalQty !== undefined).length
+    variance = items.reduce((sum, i) => sum + Math.abs(i.variance || 0), 0)
+  }
+  
   const remaining = total - counted
-  const variance = items.reduce((sum, i) => sum + Math.abs(i.variance || 0), 0)
   const recountReq = items.filter(i => i.recountRequired).length
 
   return { total, counted, remaining, variance, recountReq }
@@ -138,6 +209,51 @@ const enrichedItems = computed(() => {
     }
   })
 })
+
+const getDynamicVarianceClass = (id: string, systemQty: number) => {
+  const val = countingForm.value[id]
+  if (val === '' || val === undefined) return 'text-gray-400'
+  const variance = (val as number) - systemQty
+  if (variance === 0) return 'text-green-600'
+  return 'text-red-600'
+}
+
+const formatDynamicVariance = (id: string, systemQty: number) => {
+  const val = countingForm.value[id]
+  if (val === '' || val === undefined) return '-'
+  const variance = (val as number) - systemQty
+  return (variance > 0 ? '+' : '') + variance
+}
+
+const canSubmitCount = computed(() => {
+  if (!so.value || so.value.status !== 'COUNTING') return false
+  if (!so.value.items || so.value.items.length === 0) return false
+  return so.value.items.every(i => countingForm.value[i.id] !== '' && countingForm.value[i.id] !== undefined)
+})
+
+const submitCount = async () => {
+  if (!so.value) return
+  if (!canSubmitCount.value) {
+    submitError.value = "All items must be counted before submission."
+    return
+  }
+  
+  submitError.value = null
+  isSubmitting.value = true
+  
+  const payload = so.value.items.map(item => ({
+    id: item.id,
+    physicalQty: countingForm.value[item.id] as number
+  }))
+  
+  try {
+    await stockOpnameStore.submitCount(so.value.id, payload, 'System')
+  } catch (e: any) {
+    submitError.value = e.message || "Failed to submit count"
+  } finally {
+    isSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -290,9 +406,9 @@ const enrichedItems = computed(() => {
                 <tr>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">SKU</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
-                  <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">System Qty</th>
+                  <th v-if="!(so.status === 'COUNTING' && so.countingMode === 'BLIND')" scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">System Qty</th>
                   <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Physical Qty</th>
-                  <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variance</th>
+                  <th v-if="!(so.status === 'COUNTING' && so.countingMode === 'BLIND')" scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variance</th>
                   <th scope="col" class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
@@ -304,27 +420,63 @@ const enrichedItems = computed(() => {
                   <td class="px-6 py-4 text-sm text-gray-500">
                     {{ item.productName }}
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                    <span v-if="so.countingMode === 'BLIND'" class="text-gray-400 italic">Hidden</span>
+                  
+                  <td v-if="!(so.status === 'COUNTING' && so.countingMode === 'BLIND')" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <span v-if="so.countingMode === 'BLIND' && so.status !== 'COUNTING'" class="text-gray-900">{{ item.systemQty }}</span>
                     <span v-else>{{ item.systemQty }}</span>
                   </td>
+                  
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                    {{ item.physicalQty !== undefined ? item.physicalQty : '-' }}
+                    <div v-if="so.status === 'COUNTING'" class="flex justify-end">
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="1"
+                        :value="countingForm[item.id]"
+                        @input="onPhysicalQtyInput(item.id, $event)"
+                        class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2 text-right"
+                        placeholder="-"
+                      />
+                    </div>
+                    <div v-else class="font-medium">
+                      {{ item.physicalQty !== undefined ? item.physicalQty : '-' }}
+                    </div>
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold" 
-                      :class="{'text-red-600': item.variance && item.variance !== 0, 'text-green-600': item.variance === 0, 'text-gray-500': item.variance === undefined}">
-                    {{ item.variance !== undefined ? (item.variance > 0 ? '+' : '') + item.variance : '-' }}
+                  
+                  <td v-if="!(so.status === 'COUNTING' && so.countingMode === 'BLIND')" class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold">
+                    <template v-if="so.status === 'COUNTING'">
+                      <span v-if="countingForm[item.id] !== '' && countingForm[item.id] !== undefined" :class="getDynamicVarianceClass(item.id, item.systemQty)">
+                        {{ formatDynamicVariance(item.id, item.systemQty) }}
+                      </span>
+                      <span v-else class="text-gray-400 font-normal">Not Counted</span>
+                    </template>
+                    <template v-else>
+                      <span :class="{'text-red-600': item.variance && item.variance !== 0, 'text-green-600': item.variance === 0, 'text-gray-500': item.variance === undefined}">
+                        {{ item.variance !== undefined ? (item.variance > 0 ? '+' : '') + item.variance : '-' }}
+                      </span>
+                    </template>
                   </td>
+                  
                   <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                    <span v-if="item.recountRequired" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                      Recount Required
-                    </span>
-                    <span v-else-if="item.physicalQty !== undefined" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                      Counted
-                    </span>
-                    <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                      Pending
-                    </span>
+                    <template v-if="so.status === 'COUNTING'">
+                      <span v-if="countingForm[item.id] !== '' && countingForm[item.id] !== undefined" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Counted
+                      </span>
+                      <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        Pending
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span v-if="item.recountRequired" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        Recount Required
+                      </span>
+                      <span v-else-if="item.physicalQty !== undefined" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Counted
+                      </span>
+                      <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        Pending
+                      </span>
+                    </template>
                   </td>
                 </tr>
               </tbody>
@@ -359,7 +511,11 @@ const enrichedItems = computed(() => {
                 <span class="text-gray-600">Remaining</span>
                 <span class="font-bold text-gray-900">{{ summary.remaining }}</span>
               </div>
-              <div class="pt-3 border-t border-gray-200 flex justify-between text-sm">
+              <div v-if="so.countingMode !== 'BLIND'" class="pt-3 border-t border-gray-200 flex justify-between text-sm">
+                <span class="text-gray-600">Total Variance</span>
+                <span class="font-bold text-red-600">{{ summary.variance > 0 ? summary.variance : '-' }}</span>
+              </div>
+              <div v-else-if="so.status !== 'COUNTING'" class="pt-3 border-t border-gray-200 flex justify-between text-sm">
                 <span class="text-gray-600">Total Variance</span>
                 <span class="font-bold text-red-600">{{ summary.variance > 0 ? summary.variance : '-' }}</span>
               </div>
@@ -380,13 +536,32 @@ const enrichedItems = computed(() => {
             
             <div v-if="so.status === 'DRAFT'">
               <button 
-                disabled
-                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-400 cursor-not-allowed transition-colors"
+                @click="startCounting"
+                :disabled="isStarting"
+                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                <Play class="w-4 h-4 mr-2" />
+                <span v-if="isStarting" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                <Play v-else class="w-4 h-4 mr-2" />
                 Start Counting
               </button>
-              <p class="text-xs text-gray-500 mt-2">Coming in Phase 2C</p>
+            </div>
+
+            <div v-else-if="so.status === 'COUNTING'">
+              <div v-if="submitError" class="mb-4 text-sm text-red-600 bg-red-50 rounded-lg p-3 text-left">
+                <div class="flex items-start space-x-2">
+                  <AlertCircle class="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{{ submitError }}</span>
+                </div>
+              </div>
+              <button 
+                @click="submitCount"
+                :disabled="isSubmitting || !canSubmitCount"
+                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 transition-colors disabled:bg-green-400 disabled:cursor-not-allowed"
+              >
+                <span v-if="isSubmitting" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                <CheckCircle2 v-else class="w-4 h-4 mr-2" />
+                Submit Count
+              </button>
             </div>
             
             <div v-else>
