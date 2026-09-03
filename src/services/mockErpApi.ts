@@ -238,6 +238,72 @@ export interface StockAdjustment {
   createdBy: string
 }
 
+// Types from Stock Opname domain
+export type StockOpnameType = 'FULL' | 'PARTIAL' | 'CYCLE_COUNT' | 'SPOT_CHECK'
+export type StockOpnameStatus = 'DRAFT' | 'COUNTING' | 'REVIEW' | 'RECOUNT' | 'PENDING_APPROVAL' | 'APPROVED' | 'CLOSED' | 'REJECTED'
+export type StockOpnameCountingMode = 'NORMAL' | 'BLIND'
+
+export interface StockOpnameScope {
+  locationId: string
+  typeProductIds?: string[]
+  skuIds?: string[]
+}
+
+export interface StockOpnameItem {
+  id: string
+  stockOpnameId: string
+  skuId: string
+  systemQty: number
+  physicalQty?: number
+  variance?: number
+  countedBy?: string
+  countedAt?: string
+  recountRequired?: boolean
+  recountReason?: string
+  recountPhysicalQty?: number
+  recountedBy?: string
+  recountedAt?: string
+  finalPhysicalQty?: number
+  reason?: string
+  notes?: string
+}
+
+export interface StockOpname {
+  id: string
+  soNumber: string
+  scope: StockOpnameScope
+  type: StockOpnameType
+  status: StockOpnameStatus
+  countingMode: StockOpnameCountingMode
+  scheduledAt?: string
+  createdBy: string
+  createdAt: string
+  startedAt?: string
+  startedBy?: string
+  submittedAt?: string
+  submittedBy?: string
+  approvedAt?: string
+  approvedBy?: string
+  rejectedAt?: string
+  rejectedBy?: string
+  rejectionReason?: string
+  closedAt?: string
+  closedBy?: string
+  adjustmentId?: string
+  items: StockOpnameItem[]
+}
+
+export interface StockOpnameAuditLog {
+  id: string
+  stockOpnameId: string
+  action: string
+  fromStatus?: StockOpnameStatus
+  toStatus?: StockOpnameStatus
+  userId: string
+  timestamp: string
+  reason?: string
+}
+
 // Types from Sales domain
 export interface SalesTransactionItem {
   productId: string
@@ -719,11 +785,15 @@ let salesTransactions: SalesTransaction[] = []
 let salesReturns: SalesReturn[] = []
 let salesCounter = 1
 
+let stockOpnames: StockOpname[] = []
+let stockOpnameAuditLogs: StockOpnameAuditLog[] = []
+let stockOpnameCounter = 1
+
 const STORAGE_KEY = 'enterprise_pos_db'
 
 function loadDb() {
   if (typeof window === 'undefined' || !window.localStorage) return
-  
+
   const data = window.localStorage.getItem(STORAGE_KEY)
   if (data) {
     try {
@@ -743,6 +813,9 @@ function loadDb() {
       if (parsed.loyaltyPrograms) loyaltyPrograms = parsed.loyaltyPrograms
       if (parsed.pointsTransactions) pointsTransactions = parsed.pointsTransactions
       if (parsed.customers) customers = parsed.customers
+      if (parsed.stockOpnames) stockOpnames = parsed.stockOpnames
+      if (parsed.stockOpnameAuditLogs) stockOpnameAuditLogs = parsed.stockOpnameAuditLogs
+      if (parsed.stockOpnameCounter) stockOpnameCounter = parsed.stockOpnameCounter
     } catch (e) {
       console.error('Failed to load mock DB from localStorage:', e)
     }
@@ -751,7 +824,7 @@ function loadDb() {
 
 function saveDb() {
   if (typeof window === 'undefined' || !window.localStorage) return
-  
+
   try {
     const data = {
       typeProducts,
@@ -768,7 +841,10 @@ function saveDb() {
       salesCounter,
       loyaltyPrograms,
       pointsTransactions,
-      customers
+      customers,
+      stockOpnames,
+      stockOpnameAuditLogs,
+      stockOpnameCounter
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   } catch (e) {
@@ -779,6 +855,90 @@ function saveDb() {
 
 // Load DB immediately upon script evaluation
 loadDb()
+initializeCatalog()
+initializeStockOpnameSeed()
+saveDb()
+
+function initializeStockOpnameSeed() {
+  if (stockOpnames.length === 0 && locations.length > 0 && productSkus.length > 0) {
+    const firstLoc = locations[0]
+    const firstSku = productSkus[0]
+    if (!firstLoc || !firstSku) return
+    const locId = firstLoc.id
+    const user = 'System Admin'
+
+    const createSeedOpname = (
+      num: number,
+      status: StockOpnameStatus,
+      type: StockOpnameType,
+      items: Partial<StockOpnameItem>[] = []
+    ): StockOpname => {
+      const id = `SO-SEED-${num}`
+      return {
+        id,
+        soNumber: `SO-202608-${num.toString().padStart(3, '0')}`,
+        scope: { locationId: locId },
+        type,
+        status,
+        countingMode: 'NORMAL',
+        createdBy: user,
+        createdAt: new Date(Date.now() - 1000000 * num).toISOString(),
+        items: items.map((it, i) => ({
+          id: `SOI-${num}-${i}`,
+          stockOpnameId: id,
+          skuId: productSkus[i % productSkus.length]?.id || firstSku.id,
+          systemQty: 10,
+          ...it
+        }))
+      }
+    }
+
+    stockOpnames.push(createSeedOpname(1, 'DRAFT', 'FULL', [{}]))
+    stockOpnames.push(createSeedOpname(2, 'COUNTING', 'CYCLE_COUNT', [{}, {}]))
+    stockOpnames.push(createSeedOpname(3, 'REVIEW', 'SPOT_CHECK', [
+      { physicalQty: 9, variance: -1, countedBy: 'Cashier 1', countedAt: new Date().toISOString() }
+    ]))
+    stockOpnames.push(createSeedOpname(4, 'PENDING_APPROVAL', 'PARTIAL', [
+      { physicalQty: 12, variance: 2, countedBy: 'Cashier 1', countedAt: new Date().toISOString() }
+    ]))
+    stockOpnames.push(createSeedOpname(5, 'CLOSED', 'FULL', [
+      { physicalQty: 10, variance: 0, countedBy: 'Cashier 1', countedAt: new Date().toISOString(), finalPhysicalQty: 10 }
+    ]))
+    stockOpnames.push(createSeedOpname(6, 'REJECTED', 'PARTIAL', [
+      { physicalQty: 5, variance: -5, countedBy: 'Cashier 1', countedAt: new Date().toISOString() }
+    ]))
+  }
+}
+
+function assertStockOpnameTransition(from: StockOpnameStatus, to: StockOpnameStatus) {
+  const allowedTransitions: Record<StockOpnameStatus, StockOpnameStatus[]> = {
+    'DRAFT': ['COUNTING'],
+    'COUNTING': ['REVIEW'],
+    'REVIEW': ['RECOUNT', 'PENDING_APPROVAL'],
+    'RECOUNT': ['REVIEW'],
+    'PENDING_APPROVAL': ['APPROVED', 'REJECTED', 'RECOUNT'],
+    'REJECTED': ['RECOUNT'],
+    'APPROVED': ['CLOSED'],
+    'CLOSED': []
+  }
+
+  if (!allowedTransitions[from]?.includes(to)) {
+    throw new Error(`Invalid Stock Opname transition from ${from} to ${to}`)
+  }
+}
+
+function addStockOpnameAuditLog(stockOpnameId: string, action: string, userId: string, fromStatus?: StockOpnameStatus, toStatus?: StockOpnameStatus, reason?: string) {
+  stockOpnameAuditLogs.push({
+    id: `SO-LOG-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    stockOpnameId,
+    action,
+    fromStatus,
+    toStatus,
+    userId,
+    timestamp: new Date().toISOString(),
+    reason
+  })
+}
 
 // Helper
 function checkTransferCompletion(trf: StockTransfer) {
@@ -786,7 +946,7 @@ function checkTransferCompletion(trf: StockTransfer) {
   let anyReceived = false
   let anyReturned = false
   let anyShortClosed = false
-  
+
   trf.items.forEach(item => {
     if (item.receivedQty + item.returnedQty + item.shortClosedQty < item.transferQty) {
       allResolved = false
@@ -802,7 +962,7 @@ function checkTransferCompletion(trf: StockTransfer) {
     } else if (anyReceived && anyReturned && !anyShortClosed) {
       trf.status = 'Returned'
     } else {
-      trf.status = 'Completed' 
+      trf.status = 'Completed'
     }
   }
 }
@@ -812,25 +972,25 @@ const delay = (ms = 500) => new Promise(resolve => setTimeout(resolve, ms))
 
 const api = {
   // Products
-  
+
   async getProducts(): Promise<Product[]> {
     await delay()
-    
+
     // Internal Adapter for Cashier-First POS
     // Joins ProductMaster and ProductSku into the legacy Product structure
     const joinedProducts: Product[] = []
-    
+
     for (const sku of productSkus) {
-      if (sku.status !== 'Active') continue 
-      
+      if (sku.status !== 'Active') continue
+
       const master = productMasters.find(m => m.id === sku.productId)
       if (!master) continue
 
       const typeProd = typeProducts.find(tp => tp.id === master.typeProductId)
       const categoryName = typeProd ? typeProd.name : 'Uncategorized'
-      
+
       joinedProducts.push({
-        id: sku.id, 
+        id: sku.id,
         name: master.name,
         description: master.description,
         sku: sku.sku,
@@ -854,7 +1014,7 @@ const api = {
         updatedAt: sku.updatedAt
       })
     }
-    
+
     return joinedProducts
   },
 
@@ -923,7 +1083,7 @@ const api = {
     await delay()
     const index = productSkus.findIndex(s => s.id === id)
     if (index === -1) throw new Error('Product SKU not found')
-    
+
     if (updates.sku) {
       const skuConflict = productSkus.find(s => s.id !== id && s.sku.toLowerCase() === updates.sku!.toLowerCase())
       if (skuConflict) throw new Error(`SKU ${updates.sku} is already in use.`)
@@ -939,15 +1099,15 @@ const api = {
 
   async createProduct(product: Product): Promise<Product> {
     await delay()
-    
+
     // Validation: Price
     if (product.basePrice < 0) throw new Error('Selling price cannot be negative.')
     if (product.costPrice !== undefined && product.costPrice < 0) throw new Error('Cost price cannot be negative.')
-    
+
     // Validation: SKU & Barcode Uniqueness
     const skuConflict = products.find(p => p.sku.toLowerCase() === product.sku.toLowerCase())
     if (skuConflict) throw new Error(`SKU ${product.sku} is already in use.`)
-    
+
     if (product.barcode) {
       const barcodeConflict = products.find(p => p.barcode && p.barcode.toLowerCase() === product.barcode!.toLowerCase())
       if (barcodeConflict) throw new Error(`Barcode ${product.barcode} is already in use.`)
@@ -960,17 +1120,17 @@ const api = {
     await delay()
     const index = products.findIndex(p => p.id === id)
     if (index === -1) throw new Error('Product not found')
-    
+
     // Validation: Price
     if (updates.basePrice !== undefined && updates.basePrice < 0) throw new Error('Selling price cannot be negative.')
     if (updates.costPrice !== undefined && updates.costPrice < 0) throw new Error('Cost price cannot be negative.')
-    
+
     // Validation: SKU & Barcode Uniqueness
     if (updates.sku) {
       const skuConflict = products.find(p => p.id !== id && p.sku.toLowerCase() === updates.sku!.toLowerCase())
       if (skuConflict) throw new Error(`SKU ${updates.sku} is already in use.`)
     }
-    
+
     if (updates.barcode) {
       const barcodeConflict = products.find(p => p.id !== id && p.barcode && p.barcode.toLowerCase() === updates.barcode!.toLowerCase())
       if (barcodeConflict) throw new Error(`Barcode ${updates.barcode} is already in use.`)
@@ -981,17 +1141,17 @@ const api = {
   },
   async deleteProduct(id: string): Promise<void> {
     await delay()
-    
+
     // Safety check: prevent deleting products with historical data
     const hasInventory = inventoryBalances.some(b => b.productId === id)
     const hasMovements = recentMovements.some(m => m.productId === id)
     const hasTransfers = stockTransfers.some(t => t.items.some(i => i.productId === id))
     const hasAdjustments = stockAdjustments.some(a => a.items.some(i => i.productId === id))
-    
+
     if (hasInventory || hasMovements || hasTransfers || hasAdjustments) {
       throw new Error('Product cannot be deleted because it has inventory or transaction history. Deactivate the product instead.')
     }
-    
+
     products = products.filter(p => p.id !== id)
   },
 
@@ -1040,7 +1200,7 @@ const api = {
     typeProducts = typeProducts.filter(c => c.id !== id)
     saveDb()
   },
-  
+
   // ModifierGroup CRUD
   async getModifierGroups(): Promise<ModifierGroup[]> {
     await delay()
@@ -1054,13 +1214,13 @@ const api = {
   },
   async createModifierGroup(group: Omit<ModifierGroup, 'id' | 'createdAt' | 'updatedAt'>): Promise<ModifierGroup> {
     await delay()
-    
+
     // Validation
     if (group.minSelections < 0) throw new Error('Min selections must be >= 0')
     if (group.maxSelections < 1) throw new Error('Max selections must be >= 1')
     if (group.minSelections > group.maxSelections) throw new Error('Min selections cannot be greater than max selections')
     if (group.options.length < group.maxSelections) throw new Error('Number of options must be >= max selections')
-      
+
     const newGroup: ModifierGroup = {
       ...group,
       id: `mg-${Date.now()}`,
@@ -1078,34 +1238,34 @@ const api = {
     await delay()
     const index = modifierGroups.findIndex(g => g.id === id)
     if (index === -1) throw new Error('Modifier Group not found')
-    
+
     const existing = modifierGroups[index]
     const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() } as ModifierGroup
-    
+
     // Validation
     if (updated.minSelections < 0) throw new Error('Min selections must be >= 0')
     if (updated.maxSelections < 1) throw new Error('Max selections must be >= 1')
     if (updated.minSelections > updated.maxSelections) throw new Error('Min selections cannot be greater than max selections')
     if (updated.options.length < updated.maxSelections) throw new Error('Number of options must be >= max selections')
-    
+
     // Ensure all options have IDs
     updated.options = updated.options.map(opt => ({
       ...opt,
       id: opt.id || `opt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     }))
-    
+
     modifierGroups[index] = updated
     return modifierGroups[index]
   },
   async deleteModifierGroup(id: string): Promise<void> {
     await delay()
-    
+
     // Safety check: is it used by any active products?
     const usedByProducts = products.filter(p => p.modifierGroupIds?.includes(id))
     if (usedByProducts.length > 0) {
       throw new Error(`Cannot delete modifier group. It is used by ${usedByProducts.length} product(s).`)
     }
-    
+
     modifierGroups = modifierGroups.filter(g => g.id !== id)
   },
 
@@ -1122,7 +1282,7 @@ const api = {
     await delay()
     return JSON.parse(JSON.stringify(stockTransfers))
   },
-  
+
   // Stock Transfers
   async createStockTransfer(transfer: Omit<StockTransfer, 'id' | 'date' | 'status'>): Promise<StockTransfer> {
     await delay()
@@ -1153,7 +1313,7 @@ const api = {
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Pending Approval') throw new Error('Transfer must be Pending Approval')
-    
+
     // Reserve stock
     trf.items.forEach(item => {
       let balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === trf.sourceId)
@@ -1178,7 +1338,7 @@ const api = {
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Pending Approval' && trf.status !== 'Approved') throw new Error('Transfer must be Pending Approval or Approved to be rejected/cancelled')
-    
+
     // Un-reserve stock if it was Approved
     if (trf.status === 'Approved') {
       trf.items.forEach(item => {
@@ -1323,13 +1483,13 @@ const api = {
         throw new Error(`Cannot over-resolve item`)
       }
     })
-    
+
     const adjItems: StockAdjustmentItem[] = []
-    
+
     shortCloses.forEach(sc => {
       const item = trf.items.find(i => i.id === sc.itemId)!
       item.shortClosedQty += sc.qty
-      
+
       if (sc.qty > 0) {
         let transitBalance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === 'LOC-TRANSIT')
         adjItems.push({
@@ -1341,7 +1501,7 @@ const api = {
         })
       }
     })
-    
+
     if (adjItems.length > 0) {
       const newAdjustment: StockAdjustment = {
         id: `ADJ-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
@@ -1355,7 +1515,7 @@ const api = {
         createdBy: 'System'
       }
       stockAdjustments.unshift(newAdjustment)
-      
+
       // Execute the adjustment to formally decrement LOC-TRANSIT
       await this.completeStockAdjustment(newAdjustment.id)
     }
@@ -1419,7 +1579,7 @@ const api = {
         })
       }
     })
-    
+
     if (returns.length > 0 && !trf.resolutionReason) {
       trf.resolutionReason = returns[0]?.reason || ''
     }
@@ -1451,7 +1611,7 @@ const api = {
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Draft') throw new Error('Only Draft adjustments can be submitted for approval')
-    
+
     adj.status = 'Pending Approval'
     return adj
   },
@@ -1460,7 +1620,7 @@ const api = {
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Pending Approval') throw new Error('Adjustment must be Pending Approval to be approved')
-    
+
     adj.status = 'Approved'
     return adj
   },
@@ -1470,7 +1630,7 @@ const api = {
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Approved') throw new Error('Adjustment must be Approved to be completed')
     if (adj.locationId === 'LOC-TRANSIT') throw new Error('Stock Adjustment is not allowed for LOC-TRANSIT.')
-    
+
     // 1. Validate ALL items first (Atomicity)
     if (adj.type === 'Decrease') {
       for (const item of adj.items) {
@@ -1478,7 +1638,7 @@ const api = {
         const current = balance ? balance.currentStock : 0
         const reserved = balance ? balance.reservedStock : 0
         const available = current - reserved
-        
+
         if (item.adjustedQty > available) {
           const product = products.find(p => p.id === item.productId)
           const productName = product ? product.name : item.productId
@@ -1633,7 +1793,7 @@ const api = {
     // Loyalty implications
     if (originalTransaction.customerId && (originalTransaction.loyaltyEarnedPoints! > 0 || originalTransaction.loyaltyRedeemedPoints! > 0)) {
       const returnRatio = totalRefundAmount / (originalTransaction.grandTotal || 1) // prevent div by zero
-      
+
       const loyaltyEarnedPointsToRevert = Math.floor((originalTransaction.loyaltyEarnedPoints || 0) * returnRatio)
       const loyaltyRedeemedPointsToRefund = Math.floor((originalTransaction.loyaltyRedeemedPoints || 0) * returnRatio)
 
@@ -1689,11 +1849,11 @@ const api = {
 
   async createSale(payload: { locationId: string, registerSessionId?: string, paymentMethod: 'Cash' | 'Card' | 'QRIS' | '', amountReceived?: number, changeAmount?: number, items: { productId: string, quantity: number, modifiers?: any[] }[], customerId?: string, redeemPoints?: boolean }): Promise<SalesTransaction> {
     await delay()
-    
+
     // 1. Validate locationId
     if (!payload.locationId) throw new Error('Location is required')
     if (payload.locationId === 'LOC-TRANSIT') throw new Error('Cannot sell from LOC-TRANSIT')
-    
+
     const location = locations.find(l => l.id === payload.locationId)
     if (!location) throw new Error('Location not found')
 
@@ -1718,7 +1878,7 @@ const api = {
       const product = products.find(p => p.id === productId)
       if (!product) throw new Error(`Product not found (ID: ${productId})`)
       if (product.status !== 'Active') throw new Error(`Cannot sell inactive product: ${product.name}`)
-      
+
       const balance = inventoryBalances.find(b => b.productId === productId && b.locationId === payload.locationId)
       const currentStock = balance ? balance.currentStock : 0
       const reservedStock = balance ? balance.reservedStock : 0
@@ -1727,7 +1887,7 @@ const api = {
       if (quantity > availableStock) {
         throw new Error(`Cannot complete sale for ${product.name}. Requested: ${quantity}. Available: ${availableStock}.`)
       }
-      
+
       if (product.basePrice < 0) throw new Error(`Price cannot be negative for ${product.name}`)
 
       const subtotal = product.basePrice * quantity
@@ -1767,7 +1927,7 @@ const api = {
       const balance = pointsTransactions
         .filter(pt => pt.customerId === customer!.id)
         .reduce((sum, pt) => sum + pt.points, 0)
-      
+
       if (balance >= loyaltyProgram.redeemRatePoints) {
         const blocks = Math.floor(balance / loyaltyProgram.redeemRatePoints)
         if (blocks > 0) {
@@ -1775,7 +1935,7 @@ const api = {
            const actualBlocks = Math.min(blocks, neededBlocks)
            loyaltyRedeemedPoints = actualBlocks * loyaltyProgram.redeemRatePoints
            loyaltyDiscountAmount = actualBlocks * loyaltyProgram.redeemRateAmount
-           
+
            if (loyaltyDiscountAmount > totalSubtotal) {
               loyaltyDiscountAmount = totalSubtotal
            }
@@ -1853,10 +2013,10 @@ const api = {
     // Mutate inventory and create StockMovements
     for (const item of newSale.items) {
       const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === payload.locationId)!
-      
+
       balance.currentStock -= item.quantity
       // reservedStock remains unchanged
-      
+
       recentMovements.unshift({
         id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         date: new Date().toISOString(),
@@ -1876,7 +2036,7 @@ const api = {
 
   async voidSale(transactionId: string, authContext: AuthorizationContext): Promise<SalesTransaction> {
     await delay(600)
-    
+
     // PRE-FLIGHT VALIDATION
     const transaction = salesTransactions.find(t => t.id === transactionId)
     if (!transaction) {
@@ -1899,7 +2059,7 @@ const api = {
     if (!authContext.authorizedBy) {
       throw new Error("Authorization is required to void transactions.")
     }
-    
+
     if (authContext.authorizedRole !== 'Manager' && authContext.authorizedRole !== 'Supervisor') {
       throw new Error("Only Supervisors or Managers can authorize a void.")
     }
@@ -1912,7 +2072,7 @@ const api = {
       if (item.quantity <= 0) {
         throw new Error(`Invalid quantity for item ${item.productNameSnapshot}.`)
       }
-      
+
       const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === transaction.locationId)
       if (!balance) {
         throw new Error(`Inventory balance not found for product ${item.productId} at location ${transaction.locationId}.`)
@@ -1922,11 +2082,11 @@ const api = {
     // ATOMIC MUTATION
     for (const item of transaction.items) {
       const balance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === transaction.locationId)!
-      
+
       // Return stock
       balance.currentStock += item.quantity
       // reservedStock remains unchanged
-      
+
       // Create compensating movement
       recentMovements.unshift({
         id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -1964,7 +2124,7 @@ const api = {
 
   async createCustomer(customer: Omit<Customer, 'id' | 'customerCode' | 'createdAt' | 'updatedAt'>): Promise<Customer> {
     await delay(500)
-    
+
     // Validate uniqueness of phone and email if provided
     if (customer.phone && customers.some(c => c.phone === customer.phone)) {
       throw new Error(`Phone number ${customer.phone} is already used by another customer`)
@@ -2025,12 +2185,12 @@ const api = {
     await delay(500)
     const idx = customers.findIndex(c => c.id === id)
     if (idx === -1) throw new Error('Customer not found')
-    
+
     const hasSales = salesTransactions.some(s => s.customerId === id)
     if (hasSales) {
       throw new Error('Cannot delete customer with existing sales transactions. Please deactivate instead.')
     }
-    
+
     customers.splice(idx, 1)
   },
 
@@ -2063,7 +2223,7 @@ const api = {
     await delay(500)
     const idx = loyaltyPrograms.findIndex(p => p.id === id)
     if (idx === -1) throw new Error('Loyalty Program not found')
-    
+
     const currentProgram = loyaltyPrograms[idx]!
     loyaltyPrograms[idx] = {
       ...currentProgram,
@@ -2072,7 +2232,7 @@ const api = {
       createdAt: currentProgram.createdAt,
       updatedAt: new Date().toISOString()
     } as LoyaltyProgram
-    
+
     return { ...loyaltyPrograms[idx]! }
   },
 
@@ -2094,10 +2254,10 @@ const api = {
 
   async openRegister(payload: { registerId: string, locationId: string, cashierId: string, openingCash: number }): Promise<RegisterSession> {
     await delay(500)
-    
+
     const register = registers.find(r => r.id === payload.registerId)
     if (!register) throw new Error('Register not found')
-    
+
     // Check if register already has an open session
     const existingOpenSession = registerSessions.find(s => s.registerId === payload.registerId && s.status === 'OPEN')
     if (existingOpenSession) {
@@ -2145,7 +2305,7 @@ const api = {
     if (!session) throw new Error('Active session not found or already closed')
 
     const sessionSales = salesTransactions.filter(t => t.registerSessionId === sessionId)
-    
+
     let cashSales = 0
     let cardSales = 0
     let qrisSales = 0
@@ -2193,6 +2353,222 @@ const api = {
     session.variance = actualCash - preview.expectedCash
 
     return { ...session }
+  },
+
+  // --- Stock Opname ---
+  async getStockOpnames(): Promise<StockOpname[]> {
+    return JSON.parse(JSON.stringify(stockOpnames))
+  },
+
+  async getStockOpname(id: string): Promise<StockOpname | undefined> {
+    const so = stockOpnames.find(s => s.id === id)
+    return so ? JSON.parse(JSON.stringify(so)) : undefined
+  },
+
+  async createStockOpname(input: { type: StockOpnameType, scope: StockOpnameScope, countingMode?: StockOpnameCountingMode, scheduledAt?: string, createdBy: string }): Promise<StockOpname> {
+    await delay(300)
+    if (!input.scope || !input.scope.locationId) throw new Error("Location is required for Stock Opname")
+
+    const newSo: StockOpname = {
+      id: `SO-${Date.now()}`,
+      soNumber: `SO-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${stockOpnameCounter.toString().padStart(3, '0')}`,
+      type: input.type,
+      status: 'DRAFT',
+      scope: input.scope,
+      countingMode: input.countingMode || 'NORMAL',
+      scheduledAt: input.scheduledAt,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+      items: []
+    }
+    stockOpnameCounter++
+    stockOpnames.unshift(newSo)
+    addStockOpnameAuditLog(newSo.id, 'Create', input.createdBy, undefined, 'DRAFT')
+    return JSON.parse(JSON.stringify(newSo))
+  },
+
+  async updateStockOpname(id: string, input: Partial<StockOpname>, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    if (so.status !== 'DRAFT') throw new Error("Can only update Stock Opname while in DRAFT status")
+
+    if (input.scope) so.scope = input.scope
+    if (input.type) so.type = input.type
+    if (input.countingMode) so.countingMode = input.countingMode
+    if (input.scheduledAt) so.scheduledAt = input.scheduledAt
+
+    addStockOpnameAuditLog(so.id, 'Update', userId, so.status, so.status)
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async startStockOpname(id: string, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'COUNTING')
+
+    // Snapshot logic
+    let relevantBalances = inventoryBalances.filter(b => b.locationId === so.scope.locationId)
+    if (so.scope.skuIds && so.scope.skuIds.length > 0) {
+      relevantBalances = relevantBalances.filter(b => so.scope.skuIds!.includes(b.productId)) // productId in InventoryBalance actually holds skuId
+    } else if (so.scope.typeProductIds && so.scope.typeProductIds.length > 0) {
+      // Find SKUs belonging to these TypeProducts
+      const matchingMasters = productMasters.filter(pm => pm.typeProductId && so.scope.typeProductIds!.includes(pm.typeProductId))
+      const masterIds = matchingMasters.map(pm => pm.id)
+      const matchingSkus = productSkus.filter(sku => masterIds.includes(sku.productId)).map(s => s.id)
+      relevantBalances = relevantBalances.filter(b => matchingSkus.includes(b.productId))
+    }
+
+    so.items = relevantBalances.map((b, idx) => ({
+      id: `SOI-${Date.now()}-${idx}`,
+      stockOpnameId: so.id,
+      skuId: b.productId,
+      systemQty: b.currentStock
+    }))
+
+    const oldStatus = so.status
+    so.status = 'COUNTING'
+    so.startedAt = new Date().toISOString()
+    so.startedBy = userId
+
+    addStockOpnameAuditLog(so.id, 'Start', userId, oldStatus, 'COUNTING')
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async submitCount(id: string, items: { id: string, physicalQty: number }[], userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'REVIEW')
+
+    items.forEach(inputItem => {
+      const soItem = so.items.find(i => i.id === inputItem.id)
+      if (!soItem) throw new Error(`Item ${inputItem.id} not found in Stock Opname`)
+      if (inputItem.physicalQty < 0) throw new Error("Physical quantity cannot be negative")
+
+      soItem.physicalQty = inputItem.physicalQty
+      soItem.variance = inputItem.physicalQty - soItem.systemQty
+      soItem.finalPhysicalQty = inputItem.physicalQty
+      soItem.countedBy = userId
+      soItem.countedAt = new Date().toISOString()
+    })
+
+    const missingCount = so.items.some(i => i.physicalQty === undefined)
+    if (missingCount) throw new Error("Cannot submit count: some items have not been counted.")
+
+    const oldStatus = so.status
+    so.status = 'REVIEW'
+    so.submittedAt = new Date().toISOString()
+    so.submittedBy = userId
+
+    addStockOpnameAuditLog(so.id, 'Submit Count', userId, oldStatus, 'REVIEW')
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async requestRecount(id: string, input: { itemIds: string[], reason: string }, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'RECOUNT')
+
+    input.itemIds.forEach(itemId => {
+      const soItem = so.items.find(i => i.id === itemId)
+      if (soItem) {
+        soItem.recountRequired = true
+        soItem.recountReason = input.reason
+      }
+    })
+
+    const oldStatus = so.status
+    so.status = 'RECOUNT'
+    addStockOpnameAuditLog(so.id, 'Request Recount', userId, oldStatus, 'RECOUNT', input.reason)
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async submitRecount(id: string, items: { id: string, recountPhysicalQty: number }[], userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'REVIEW')
+
+    items.forEach(inputItem => {
+      const soItem = so.items.find(i => i.id === inputItem.id)
+      if (!soItem) throw new Error(`Item ${inputItem.id} not found in Stock Opname`)
+      if (!soItem.recountRequired) throw new Error(`Item ${inputItem.id} was not flagged for recount`)
+      if (inputItem.recountPhysicalQty < 0) throw new Error("Recount physical quantity cannot be negative")
+
+      soItem.recountPhysicalQty = inputItem.recountPhysicalQty
+      soItem.variance = inputItem.recountPhysicalQty - soItem.systemQty
+      soItem.finalPhysicalQty = inputItem.recountPhysicalQty
+      soItem.recountRequired = false
+      soItem.recountedBy = userId
+      soItem.recountedAt = new Date().toISOString()
+    })
+
+    const oldStatus = so.status
+    so.status = 'REVIEW'
+    addStockOpnameAuditLog(so.id, 'Submit Recount', userId, oldStatus, 'REVIEW')
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async submitForApproval(id: string, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'PENDING_APPROVAL')
+
+    const oldStatus = so.status
+    so.status = 'PENDING_APPROVAL'
+    addStockOpnameAuditLog(so.id, 'Submit For Approval', userId, oldStatus, 'PENDING_APPROVAL')
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async approveStockOpname(id: string, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'APPROVED')
+
+    const oldStatus = so.status
+    so.status = 'APPROVED'
+    so.approvedAt = new Date().toISOString()
+    so.approvedBy = userId
+
+    addStockOpnameAuditLog(so.id, 'Approve', userId, oldStatus, 'APPROVED')
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async rejectStockOpname(id: string, reason: string, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    if (!reason || reason.trim() === '') throw new Error("A reason must be provided to reject.")
+    assertStockOpnameTransition(so.status, 'REJECTED')
+
+    const oldStatus = so.status
+    so.status = 'REJECTED'
+    so.rejectedAt = new Date().toISOString()
+    so.rejectedBy = userId
+    so.rejectionReason = reason
+
+    addStockOpnameAuditLog(so.id, 'Reject', userId, oldStatus, 'REJECTED', reason)
+    return JSON.parse(JSON.stringify(so))
+  },
+
+  async closeStockOpname(id: string, userId: string): Promise<StockOpname> {
+    await delay(300)
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    assertStockOpnameTransition(so.status, 'CLOSED')
+
+    const oldStatus = so.status
+    so.status = 'CLOSED'
+    so.closedAt = new Date().toISOString()
+    so.closedBy = userId
+
+    addStockOpnameAuditLog(so.id, 'Close', userId, oldStatus, 'CLOSED')
+    return JSON.parse(JSON.stringify(so))
   }
 }
 
