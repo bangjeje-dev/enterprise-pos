@@ -183,6 +183,21 @@ const router = createRouter({
           path: 'crm/loyalty/:id/detail',
           name: 'loyalty-detail',
           component: () => import('@/views/crm/LoyaltyProgramDetailView.vue')
+        },
+        {
+          path: 'master-data/registers',
+          name: 'registers',
+          component: () => import('@/views/master-data/RegisterListView.vue')
+        },
+        {
+          path: 'master-data/registers/new',
+          name: 'register-new',
+          component: () => import('@/views/master-data/RegisterFormView.vue')
+        },
+        {
+          path: 'master-data/registers/:id',
+          name: 'register-edit',
+          component: () => import('@/views/master-data/RegisterFormView.vue')
         }
       ]
     },

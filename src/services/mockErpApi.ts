@@ -147,9 +147,19 @@ export interface Customer {
 // Types from Register domain
 export interface Register {
   id: string
+  code: string
   name: string
-  locationId: string
+  branchId: string
+  registerNumber: string
   status: 'Active' | 'Inactive'
+  cashDrawer?: string
+  printer?: string
+  scanner?: string
+  edc?: string
+  notes?: string
+  locationId?: string // Temporary backward compatibility only
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type RegisterSessionStatus = 'OPEN' | 'CLOSED'
@@ -389,8 +399,8 @@ export interface AuthorizationContext {
 
 // Mock Database State
 let registers: Register[] = [
-  { id: 'REG-01', name: 'Register 01', locationId: 'LOC-2', status: 'Active' },
-  { id: 'REG-02', name: 'Register 02', locationId: 'LOC-2', status: 'Active' }
+  { id: 'REG-01', code: 'MK-001', name: 'Register 01', branchId: 'LOC-2', registerNumber: '001', locationId: 'LOC-2', status: 'Active', notes: '', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' },
+  { id: 'REG-02', code: 'MK-002', name: 'Register 02', branchId: 'LOC-2', registerNumber: '002', locationId: 'LOC-2', status: 'Active', notes: '', createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z' }
 ]
 
 let registerSessions: RegisterSession[] = []
@@ -2245,6 +2255,49 @@ const api = {
   async getRegisters(): Promise<Register[]> {
     await delay(200)
     return [...registers]
+  },
+
+  async getRegisterById(id: string): Promise<Register> {
+    await delay(200)
+    const register = registers.find(r => r.id === id)
+    if (!register) throw new Error('Register not found')
+    return { ...register }
+  },
+
+  async createRegister(register: Omit<Register, 'id' | 'createdAt' | 'updatedAt'>): Promise<Register> {
+    await delay(500)
+    const newRegister: Register = {
+      ...register,
+      id: `REG-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      locationId: register.branchId // Temporary backward compatibility mapping
+    }
+    registers.push(newRegister)
+    return { ...newRegister }
+  },
+
+  async updateRegister(id: string, updates: Partial<Register>): Promise<Register> {
+    await delay(500)
+    const idx = registers.findIndex(r => r.id === id)
+    if (idx === -1) throw new Error('Register not found')
+
+    const current = registers[idx]!
+    registers[idx] = {
+      ...current,
+      ...updates,
+      id: current.id,
+      createdAt: current.createdAt,
+      updatedAt: new Date().toISOString(),
+      locationId: updates.branchId || current.branchId // Temporary backward compatibility
+    } as Register
+
+    return { ...registers[idx]! }
+  },
+
+  async getBranchReferences(): Promise<Location[]> {
+    await delay(200)
+    return locations.filter(loc => loc.type === 'Branch')
   },
 
   async getCashiers(): Promise<{ id: string, name: string }[]> {

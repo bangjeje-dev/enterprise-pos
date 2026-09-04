@@ -75,6 +75,13 @@ const navigation = [
       { name: 'Taxes & Fees', path: '/settings/taxes' },
       { name: 'Users & Roles', path: '/settings/users' }
     ]
+  },
+  {
+    name: 'Master Data',
+    icon: Store,
+    children: [
+      { name: 'Cashier Registers', path: '/master-data/registers' }
+    ]
   }
 ]
 </script>
