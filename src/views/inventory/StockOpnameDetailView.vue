@@ -244,9 +244,9 @@ const submitCount = async () => {
   if (!so.value) return
   isSubmitting.value = true
   try {
-    const payload = Object.entries(countingForm).map(([id, qty]) => ({
+    const payload = Object.entries(countingForm.value).map(([id, qty]) => ({
       id,
-      physicalQty: qty
+      physicalQty: qty as number
     }))
     await stockOpnameStore.submitCount(so.value.id, payload, 'System User')
   } catch (error: any) {
