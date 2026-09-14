@@ -884,22 +884,30 @@ function initializeStockOpnameSeed() {
       items: Partial<StockOpnameItem>[] = []
     ): StockOpname => {
       const id = `SO-SEED-${num}`
+      
+      const mappedItems = items.map((it, i) => ({
+        id: `SOI-${num}-${i}`,
+        stockOpnameId: id,
+        skuId: productSkus[i % productSkus.length]?.id || firstSku.id,
+        systemQty: 10,
+        ...it
+      }))
+      
+      const scope: StockOpnameScope = { locationId: locId }
+      if (type !== 'FULL') {
+        scope.skuIds = Array.from(new Set(mappedItems.map(it => it.skuId)))
+      }
+
       return {
         id,
         soNumber: `SO-202608-${num.toString().padStart(3, '0')}`,
-        scope: { locationId: locId },
+        scope,
         type,
         status,
         countingMode: 'NORMAL',
         createdBy: user,
         createdAt: new Date(Date.now() - 1000000 * num).toISOString(),
-        items: items.map((it, i) => ({
-          id: `SOI-${num}-${i}`,
-          stockOpnameId: id,
-          skuId: productSkus[i % productSkus.length]?.id || firstSku.id,
-          systemQty: 10,
-          ...it
-        }))
+        items: mappedItems
       }
     }
 
@@ -2617,15 +2625,15 @@ const api = {
     const so = stockOpnames.find(s => s.id === id)
     if (!so) throw new Error("Stock Opname not found")
     if (!reason || reason.trim() === '') throw new Error("A reason must be provided to reject.")
-    assertStockOpnameTransition(so.status, 'REJECTED')
+    assertStockOpnameTransition(so.status, 'RECOUNT')
 
     const oldStatus = so.status
-    so.status = 'REJECTED'
+    so.status = 'RECOUNT'
     so.rejectedAt = new Date().toISOString()
     so.rejectedBy = userId
     so.rejectionReason = reason
 
-    addStockOpnameAuditLog(so.id, 'Reject', userId, oldStatus, 'REJECTED', reason)
+    addStockOpnameAuditLog(so.id, 'Reject', userId, oldStatus, 'RECOUNT', reason)
     return JSON.parse(JSON.stringify(so))
   },
 

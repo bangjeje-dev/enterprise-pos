@@ -93,8 +93,17 @@ const formatType = (type: string) => {
 }
 
 const resolvedScopeSkus = computed(() => {
-  if (!so.value || !so.value.scope.skuIds) return []
-  return so.value.scope.skuIds.map(id => {
+  if (!so.value) return []
+  
+  let skuIds = so.value.scope.skuIds || []
+  
+  // Fallback: derive unique SKUs from items if scope.skuIds is empty
+  if (skuIds.length === 0 && so.value.items && so.value.items.length > 0) {
+    const uniqueSkus = new Set(so.value.items.map(item => item.skuId))
+    skuIds = Array.from(uniqueSkus)
+  }
+  
+  return skuIds.map(id => {
     const sku = skuStore.productSkus.find(s => s.id === id)
     const master = sku ? productStore.getProductMasterById(sku.productId) : null
     return {
@@ -625,7 +634,7 @@ const submitForApproval = async () => {
                 <span class="font-bold text-green-600">{{ reviewSummary.match }}</span>
               </div>
               <div class="flex justify-between text-sm">
-                <span class="text-gray-600">Variance</span>
+                <span class="text-gray-600">Mismatched SKUs</span>
                 <span class="font-bold text-red-600">{{ reviewSummary.variance }}</span>
               </div>
             </div>
