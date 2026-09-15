@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStockOpnameStore } from '@/stores/stockOpname'
 import { useInventoryStore } from '@/stores/inventory'
@@ -335,18 +335,25 @@ const submitForApproval = async () => {
 
 // Approver Actions
 const isApproving = ref(false)
-const approveStockOpname = async () => {
-  if (!so.value) return
-  isApproving.value = true
-  try {
-    await stockOpnameStore.approveStockOpname(so.value.id, 'System Approver')
-    alert('Stock Opname approved successfully!')
-  } catch (error: any) {
-    alert(error.message || 'Failed to approve Stock Opname')
-  } finally {
-    isApproving.value = false
+  const approveStockOpname = async () => {
+    if (!so.value) return
+    isApproving.value = true
+    try {
+      await stockOpnameStore.approveStockOpname(so.value.id, 'System Approver')
+      
+      // Wait for Vue reactivity to flush the DOM update
+      await nextTick()
+      
+      // Use setTimeout to ensure the browser paints the new frame before the synchronous alert blocks the thread
+      setTimeout(() => {
+        alert('Stock Opname approved successfully!')
+      }, 50)
+    } catch (error: any) {
+      alert(error.message || 'Failed to approve Stock Opname')
+    } finally {
+      isApproving.value = false
+    }
   }
-}
 
 const isRejectModalOpen = ref(false)
 const isRejecting = ref(false)
@@ -367,8 +374,14 @@ const submitReject = async () => {
   try {
     await stockOpnameStore.rejectStockOpname(so.value.id, rejectReason.value.trim(), 'System Approver')
     closeRejectModal()
-    alert('Stock Opname rejected and sent to Recount.')
-    router.push('/inventory/stock-opname-approvals')
+    
+    // Wait for Vue reactivity to flush the DOM update
+    await nextTick()
+    
+    setTimeout(() => {
+      alert('Stock Opname rejected and sent to Recount.')
+      router.push('/inventory/stock-opname-approvals')
+    }, 50)
   } catch (error: any) {
     alert(error.message || 'Failed to reject Stock Opname')
   } finally {
