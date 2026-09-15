@@ -2640,6 +2640,109 @@ const api = {
     return JSON.parse(JSON.stringify(so))
   },
 
+  async reconcileStockOpname(id: string, userId: string): Promise<StockOpname> {
+    const so = stockOpnames.find(s => s.id === id)
+    if (!so) throw new Error("Stock Opname not found")
+    if (so.status !== 'APPROVED') throw new Error("Only APPROVED Stock Opnames can be reconciled")
+    if (so.adjustmentId) throw new Error("Stock Opname has already been reconciled.")
+
+    // 1. Validation phase (prevent partial mutation)
+    const validItems = so.items.filter(i => (i.variance || 0) !== 0)
+    for (const item of validItems) {
+      const variance = item.variance || 0
+      if (variance < 0) {
+        // Must validate negative stock availability
+        const balance = inventoryBalances.find(b => b.productId === item.skuId && b.locationId === so.scope.locationId)
+        const current = balance ? balance.currentStock : 0
+        const reserved = balance ? balance.reservedStock : 0
+        const available = current - reserved
+        
+        const absoluteVariance = Math.abs(variance)
+        if (absoluteVariance > available) {
+          const product = products.find(p => p.id === item.skuId)
+          const productName = product ? product.name : item.skuId
+          throw new Error(`Cannot reconcile negative variance for ${productName}. Decrease: ${absoluteVariance}, Available: ${available}.`)
+        }
+      }
+    }
+
+    // 2. Prepare Stock Adjustment if there are variances
+    let adjustmentId: string | undefined = undefined
+    if (validItems.length > 0) {
+      adjustmentId = `ADJ-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+      
+      const adjItems: StockAdjustmentItem[] = validItems.map(item => {
+        const balance = inventoryBalances.find(b => b.productId === item.skuId && b.locationId === so.scope.locationId)
+        const currentStock = balance ? balance.currentStock : 0
+        const variance = item.variance || 0
+        return {
+          id: `ADJI-${Math.random().toString(36).substring(7)}`,
+          productId: item.skuId,
+          currentStock,
+          adjustedQty: Math.abs(variance), // Keep positive for the item structure, though variance dictates direction
+          finalStock: currentStock + variance
+        }
+      })
+
+      const newAdjustment: StockAdjustment = {
+        id: adjustmentId,
+        date: new Date().toISOString(),
+        locationId: so.scope.locationId,
+        type: '', // Mixed/Neutral
+        reason: 'Stock Opname Reconciliation',
+        notes: `Reconciliation for Stock Opname ${so.soNumber}`,
+        status: 'Completed',
+        items: adjItems,
+        createdBy: userId
+      }
+      stockAdjustments.unshift(newAdjustment)
+    }
+
+    // 3. Mutate Inventory Balances and add Stock Movements
+    for (const item of validItems) {
+      const variance = item.variance || 0
+      const balance = inventoryBalances.find(b => b.productId === item.skuId && b.locationId === so.scope.locationId)
+      
+      let balanceAfter = variance
+      if (balance) {
+        balance.currentStock += variance
+        balanceAfter = balance.currentStock
+      } else {
+        inventoryBalances.push({
+          id: `IB-${item.skuId}-${so.scope.locationId}`,
+          productId: item.skuId,
+          locationId: so.scope.locationId,
+          currentStock: variance,
+          reservedStock: 0
+        })
+      }
+
+      recentMovements.unshift({
+        id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        date: new Date().toISOString(),
+        type: 'Adjustment',
+        productId: item.skuId,
+        locationId: so.scope.locationId,
+        qty: variance,
+        balanceAfter,
+        user: userId,
+        referenceId: adjustmentId!
+      })
+    }
+
+    // 4. Update Stock Opname Status
+    const oldStatus = so.status
+    so.status = 'CLOSED'
+    so.closedAt = new Date().toISOString()
+    so.closedBy = userId
+    if (adjustmentId) {
+      so.adjustmentId = adjustmentId
+    }
+
+    addStockOpnameAuditLog(so.id, 'Reconcile', userId, oldStatus, 'CLOSED', 'System Reconciliation')
+    return JSON.parse(JSON.stringify(so))
+  },
+
   async closeStockOpname(id: string, userId: string): Promise<StockOpname> {
     await delay(300)
     const so = stockOpnames.find(s => s.id === id)

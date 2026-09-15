@@ -359,6 +359,23 @@ const isRejectModalOpen = ref(false)
 const isRejecting = ref(false)
 const rejectReason = ref('')
 
+const isReconciling = ref(false)
+const reconcileStockOpname = async () => {
+  if (!so.value) return
+  isReconciling.value = true
+  try {
+    await stockOpnameStore.reconcileStockOpname(so.value.id, 'System Admin')
+    await nextTick()
+    setTimeout(() => {
+      alert('Stock Opname reconciled successfully! Inventory has been updated.')
+    }, 50)
+  } catch (error: any) {
+    alert(error.message || 'Failed to reconcile Stock Opname')
+  } finally {
+    isReconciling.value = false
+  }
+}
+
 const openRejectModal = () => {
   rejectReason.value = ''
   isRejectModalOpen.value = true
@@ -801,8 +818,30 @@ const submitReject = async () => {
               </div>
             </div>
             
+            <div v-else-if="so.status === 'APPROVED'">
+              <p class="text-sm text-gray-500 mb-4">Stock Opname is approved. Proceed to reconcile to update the inventory balance.</p>
+              <div class="space-y-3">
+                <button 
+                  @click="reconcileStockOpname"
+                  :disabled="isReconciling"
+                  class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+                >
+                  <span v-if="isReconciling" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                  <CheckCircle2 v-else class="w-4 h-4 mr-2" />
+                  Reconcile Stock Opname
+                </button>
+              </div>
+            </div>
+
+            <div v-else-if="so.status === 'CLOSED'">
+              <p class="text-sm text-gray-500 mb-2">This Stock Opname has been successfully reconciled and closed.</p>
+              <p v-if="so.adjustmentId" class="text-sm font-medium text-blue-600 cursor-pointer hover:underline" @click="router.push('/inventory/adjustments')">
+                View Adjustment: {{ so.adjustmentId }}
+              </p>
+            </div>
+            
             <div v-else>
-              <p class="text-sm text-gray-500">Workflow actions for status <span class="font-semibold">{{ so.status }}</span> are coming in the next phases.</p>
+              <p class="text-sm text-gray-500">No actions available for status <span class="font-semibold">{{ so.status }}</span>.</p>
             </div>
 
           </div>

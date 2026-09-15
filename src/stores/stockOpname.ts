@@ -191,6 +191,22 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
     }
   }
 
+  async function reconcileStockOpname(id: string, userId: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const reconciled = await mockErpApi.reconcileStockOpname(id, userId)
+      currentStockOpname.value = reconciled
+      await fetchStockOpnames()
+      return reconciled
+    } catch (e: any) {
+      error.value = e.message || 'Failed to reconcile Stock Opname'
+      throw e
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function rejectStockOpname(id: string, reason: string, userId: string) {
     isLoading.value = true
     error.value = null
@@ -239,6 +255,7 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
     submitRecount,
     submitForApproval,
     approveStockOpname,
+    reconcileStockOpname,
     rejectStockOpname,
     closeStockOpname,
     draftForm
