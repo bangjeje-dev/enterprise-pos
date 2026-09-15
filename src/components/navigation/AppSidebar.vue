@@ -46,6 +46,7 @@ const navigation = [
       { name: 'Dashboard', path: '/inventory/dashboard' },
       { name: 'Inventory List', path: '/inventory/list' },
       { name: 'Stock Opname', path: '/inventory/stock-opname' },
+      { name: 'Stock Opname Approvals', path: '/inventory/stock-opname-approvals' },
       { name: 'Stock Adjustments', path: '/inventory/adjustments' },
       { name: 'Stock Transfers', path: '/inventory/transfers' }
     ]

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { mockErpApi } from '../services/mockErpApi'
 import type { StockOpname, StockOpnameScope, StockOpnameType, StockOpnameCountingMode } from '../services/mockErpApi'
 
@@ -8,6 +8,10 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
   const currentStockOpname = ref<StockOpname | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+
+  const pendingApprovals = computed(() => {
+    return stockOpnames.value.filter(so => so.status === 'PENDING_APPROVAL')
+  })
 
   // Draft form state for Create Stock Opname
   const draftForm = ref<{
@@ -221,6 +225,7 @@ export const useStockOpnameStore = defineStore('stockOpname', () => {
 
   return {
     stockOpnames,
+    pendingApprovals,
     currentStockOpname,
     isLoading,
     error,

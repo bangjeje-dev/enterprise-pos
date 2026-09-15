@@ -333,6 +333,49 @@ const submitForApproval = async () => {
   }
 }
 
+// Approver Actions
+const isApproving = ref(false)
+const approveStockOpname = async () => {
+  if (!so.value) return
+  isApproving.value = true
+  try {
+    await stockOpnameStore.approveStockOpname(so.value.id, 'System Approver')
+    alert('Stock Opname approved successfully!')
+  } catch (error: any) {
+    alert(error.message || 'Failed to approve Stock Opname')
+  } finally {
+    isApproving.value = false
+  }
+}
+
+const isRejectModalOpen = ref(false)
+const isRejecting = ref(false)
+const rejectReason = ref('')
+
+const openRejectModal = () => {
+  rejectReason.value = ''
+  isRejectModalOpen.value = true
+}
+
+const closeRejectModal = () => {
+  isRejectModalOpen.value = false
+}
+
+const submitReject = async () => {
+  if (!so.value || !rejectReason.value.trim()) return
+  isRejecting.value = true
+  try {
+    await stockOpnameStore.rejectStockOpname(so.value.id, rejectReason.value.trim(), 'System Approver')
+    closeRejectModal()
+    alert('Stock Opname rejected and sent to Recount.')
+    router.push('/inventory/stock-opname-approvals')
+  } catch (error: any) {
+    alert(error.message || 'Failed to reject Stock Opname')
+  } finally {
+    isRejecting.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -361,9 +404,10 @@ const submitForApproval = async () => {
               {{ so.status.replace('_', ' ') }}
             </span>
           </div>
-          <p class="text-sm text-gray-500 mt-1" v-if="so">
-            Created on {{ formatDate(so.createdAt) }} by {{ so.createdBy }}
-          </p>
+          <div class="text-sm text-gray-500 mt-1" v-if="so">
+            <p>Created on {{ formatDate(so.createdAt) }} by {{ so.createdBy }}</p>
+            <p v-if="so.submittedAt">Submitted on {{ formatDate(so.submittedAt) }} by {{ so.submittedBy || 'Unknown' }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -723,7 +767,25 @@ const submitForApproval = async () => {
             </div>
 
             <div v-else-if="so.status === 'PENDING_APPROVAL'">
-              <p class="text-sm text-gray-500">Waiting for approval. Workspace is read-only.</p>
+              <p class="text-sm text-gray-500 mb-4">Waiting for approval. Please review the counts.</p>
+              <div class="space-y-3">
+                <button 
+                  @click="approveStockOpname"
+                  :disabled="isApproving"
+                  class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none transition-colors disabled:bg-green-400 disabled:cursor-not-allowed"
+                >
+                  <span v-if="isApproving" class="inline-block animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                  <CheckCircle2 v-else class="w-4 h-4 mr-2" />
+                  Approve
+                </button>
+                <button 
+                  @click="openRejectModal"
+                  :disabled="isApproving"
+                  class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-red-600 bg-white hover:bg-red-50 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
             
             <div v-else>
@@ -791,6 +853,48 @@ const submitForApproval = async () => {
               Submit Recount
             </button>
             <button type="button" @click="closeRecountModal" :disabled="isSubmittingRecount" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reject Modal -->
+    <div v-if="isRejectModalOpen" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="reject-modal-title" role="dialog" aria-modal="true">
+      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="closeRejectModal"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <AlertCircle class="h-6 w-6 text-red-600" />
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="reject-modal-title">
+                  Reject Stock Opname
+                </h3>
+                <div class="mt-4">
+                  <p class="text-sm text-gray-500 mb-4">Are you sure you want to reject this Stock Opname? It will be sent back for recounting.</p>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700">Rejection Reason <span class="text-red-500">*</span></label>
+                    <textarea 
+                      v-model="rejectReason" 
+                      rows="3"
+                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm" 
+                      placeholder="Please provide a reason for rejection..."
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button type="button" @click="submitReject" :disabled="isRejecting || !rejectReason.trim()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+              Reject Stock Opname
+            </button>
+            <button type="button" @click="closeRejectModal" :disabled="isRejecting" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
               Cancel
             </button>
           </div>

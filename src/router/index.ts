@@ -90,6 +90,11 @@ const router = createRouter({
           component: () => import('@/views/inventory/StockOpnameListView.vue')
         },
         {
+          path: 'inventory/stock-opname-approvals',
+          name: 'inventory-stock-opname-approvals',
+          component: () => import('@/views/inventory/StockOpnameApprovalListView.vue')
+        },
+        {
           path: 'inventory/stock-opname/new',
           name: 'inventory-stock-opname-new',
           component: () => import('@/views/inventory/StockOpnameCreateView.vue')

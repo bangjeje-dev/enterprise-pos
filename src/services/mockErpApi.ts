@@ -916,9 +916,12 @@ function initializeStockOpnameSeed() {
     stockOpnames.push(createSeedOpname(3, 'REVIEW', 'SPOT_CHECK', [
       { physicalQty: 9, variance: -1, countedBy: 'Cashier 1', countedAt: new Date().toISOString() }
     ]))
-    stockOpnames.push(createSeedOpname(4, 'PENDING_APPROVAL', 'PARTIAL', [
+    const so4 = createSeedOpname(4, 'PENDING_APPROVAL', 'PARTIAL', [
       { physicalQty: 12, variance: 2, countedBy: 'Cashier 1', countedAt: new Date().toISOString() }
-    ]))
+    ])
+    so4.submittedBy = 'Cashier 1'
+    so4.submittedAt = new Date().toISOString()
+    stockOpnames.push(so4)
     stockOpnames.push(createSeedOpname(5, 'CLOSED', 'FULL', [
       { physicalQty: 10, variance: 0, countedBy: 'Cashier 1', countedAt: new Date().toISOString(), finalPhysicalQty: 10 }
     ]))
