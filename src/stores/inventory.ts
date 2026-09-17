@@ -229,11 +229,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function submitTransfer(id: string) {
+  async function submitTransfer(id: string, userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.submitStockTransfer(id)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.submitStockTransfer(id, userId || '')
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -243,11 +244,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function approveTransfer(id: string) {
+  async function approveTransfer(id: string, userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.approveStockTransfer(id)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.approveStockTransfer(id, userId || '')
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -257,11 +259,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function rejectTransfer(id: string) {
+  async function rejectTransfer(id: string, userId?: string, reason?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.rejectStockTransfer(id)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.rejectStockTransfer(id, userId || '', reason)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -271,11 +274,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function dispatchTransfer(id: string) {
+  async function dispatchTransfer(id: string, userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.dispatchStockTransfer(id)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.dispatchStockTransfer(id, userId || '')
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -285,11 +289,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function receiveTransfer(id: string, receives: { itemId: string, qty: number }[]) {
+  async function receiveTransfer(id: string, receives: { itemId: string, qty: number }[], userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.receiveStockTransfer(id, receives)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.receiveStockTransfer(id, userId || '', receives)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -299,11 +304,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function returnTransfer(id: string, returns: { itemId: string, qty: number, reason: string }[]) {
+  async function returnTransfer(id: string, returns: { itemId: string, qty: number, reason: string }[], userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.returnStockTransfer(id, returns)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.returnStockTransfer(id, userId || '', returns)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -313,11 +319,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function shortCloseTransfer(id: string, shortCloses: { itemId: string, qty: number, reason: string }[]) {
+  async function shortCloseTransfer(id: string, shortCloses: { itemId: string, qty: number, reason: string }[], userId?: string) {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.shortCloseStockTransfer(id, shortCloses)
+      // Phase 2G.2B will connect the real UI identity
+      await mockErpApi.shortCloseStockTransfer(id, userId || '', shortCloses)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message

@@ -226,6 +226,16 @@ export interface StockTransfer {
   resolutionReason?: string
   items: StockTransferItem[]
   createdBy: string
+  submittedBy?: string
+  submittedAt?: string
+  approvedBy?: string
+  approvedAt?: string
+  rejectedBy?: string
+  rejectedAt?: string
+  dispatchedBy?: string
+  dispatchedAt?: string
+  receivedBy?: string
+  receivedAt?: string
 }
 
 export interface StockAdjustmentItem {
@@ -265,6 +275,17 @@ export interface StockAdjustmentAuditLog {
   timestamp: string
   fromStatus?: StockAdjustment['status']
   toStatus?: StockAdjustment['status']
+  reason?: string
+}
+
+export interface StockTransferAuditLog {
+  id: string
+  stockTransferId: string
+  action: string
+  userId: string
+  timestamp: string
+  fromStatus?: StockTransfer['status']
+  toStatus?: StockTransfer['status']
   reason?: string
 }
 
@@ -820,6 +841,7 @@ let stockOpnameAuditLogs: StockOpnameAuditLog[] = []
 let stockOpnameCounter = 1
 
 let stockAdjustmentAuditLogs: StockAdjustmentAuditLog[] = []
+let stockTransferAuditLogs: StockTransferAuditLog[] = []
 
 const STORAGE_KEY = 'enterprise_pos_db'
 
@@ -849,6 +871,7 @@ function loadDb() {
       if (parsed.stockOpnameAuditLogs) stockOpnameAuditLogs = parsed.stockOpnameAuditLogs
       if (parsed.stockOpnameCounter) stockOpnameCounter = parsed.stockOpnameCounter
       if (parsed.stockAdjustmentAuditLogs) stockAdjustmentAuditLogs = parsed.stockAdjustmentAuditLogs
+      if (parsed.stockTransferAuditLogs) stockTransferAuditLogs = parsed.stockTransferAuditLogs
     } catch (e) {
       console.error('Failed to load mock DB from localStorage:', e)
     }
@@ -878,7 +901,8 @@ function saveDb() {
       stockOpnames,
       stockOpnameAuditLogs,
       stockOpnameCounter,
-      stockAdjustmentAuditLogs
+      stockAdjustmentAuditLogs,
+      stockTransferAuditLogs
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   } catch (e) {
@@ -1012,6 +1036,29 @@ function addStockAdjustmentAuditLog(
     reason
   }
   stockAdjustmentAuditLogs.push(log)
+  saveDb()
+}
+
+function addStockTransferAuditLog(
+  stockTransferId: string,
+  action: string,
+  userId: string,
+  fromStatus?: StockTransfer['status'],
+  toStatus?: StockTransfer['status'],
+  reason?: string
+) {
+  const log: StockTransferAuditLog = {
+    id: `STAL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    stockTransferId,
+    action,
+    userId,
+    timestamp: new Date().toISOString(),
+    fromStatus,
+    toStatus,
+    reason
+  }
+  stockTransferAuditLogs.push(log)
+  saveDb()
 }
 
 function generateStockOpnameId(): string {
@@ -1364,6 +1411,19 @@ const api = {
   // Stock Transfers
   async createStockTransfer(transfer: Omit<StockTransfer, 'id' | 'date' | 'status'>): Promise<StockTransfer> {
     await delay()
+
+    if (transfer.sourceId === transfer.destinationId) {
+      throw new Error('Source and destination locations cannot be the same')
+    }
+    if (transfer.sourceId === 'LOC-TRANSIT' || transfer.destinationId === 'LOC-TRANSIT') {
+      throw new Error('Manual Stock Transfer cannot use LOC-TRANSIT as source or destination')
+    }
+    const sourceExists = locations.some(l => l.id === transfer.sourceId)
+    const destExists = locations.some(l => l.id === transfer.destinationId)
+    if (!sourceExists || !destExists) {
+      throw new Error('Source or destination location does not exist')
+    }
+
     const newTransfer: StockTransfer = {
       ...transfer,
       id: `TRF-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
@@ -1376,21 +1436,37 @@ const api = {
       }))
     }
     stockTransfers.unshift(newTransfer)
+    addStockTransferAuditLog(newTransfer.id, 'Create', newTransfer.createdBy, undefined, 'Draft')
     return newTransfer
   },
-  async submitStockTransfer(id: string): Promise<StockTransfer> {
+  async submitStockTransfer(id: string, userId: string): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Draft') throw new Error('Only Draft transfers can be submitted')
+    
+    const oldStatus = trf.status
     trf.status = 'Pending Approval'
+    trf.submittedBy = userId
+    trf.submittedAt = new Date().toISOString()
+
+    addStockTransferAuditLog(id, 'Submit For Approval', userId, oldStatus, 'Pending Approval')
     return trf
   },
-  async approveStockTransfer(id: string): Promise<StockTransfer> {
+  async approveStockTransfer(id: string, userId: string): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Pending Approval') throw new Error('Transfer must be Pending Approval')
+    if (trf.createdBy === userId) {
+      throw new Error('Maker/Checker violation: Creator cannot approve their own Stock Transfer')
+    }
 
     // Reserve stock
     trf.items.forEach(item => {
@@ -1408,11 +1484,19 @@ const api = {
       }
     })
 
+    const oldStatus = trf.status
     trf.status = 'Approved'
+    trf.approvedBy = userId
+    trf.approvedAt = new Date().toISOString()
+
+    addStockTransferAuditLog(id, 'Approve', userId, oldStatus, 'Approved')
     return trf
   },
-  async rejectStockTransfer(id: string): Promise<StockTransfer> {
+  async rejectStockTransfer(id: string, userId: string, reason?: string): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Pending Approval' && trf.status !== 'Approved') throw new Error('Transfer must be Pending Approval or Approved to be rejected/cancelled')
@@ -1427,11 +1511,20 @@ const api = {
       })
     }
 
+    const oldStatus = trf.status
     trf.status = 'Rejected'
+    trf.rejectedBy = userId
+    trf.rejectedAt = new Date().toISOString()
+    if (reason) trf.resolutionReason = reason
+
+    addStockTransferAuditLog(id, 'Reject', userId, oldStatus, 'Rejected', reason)
     return trf
   },
-  async dispatchStockTransfer(id: string): Promise<StockTransfer> {
+  async dispatchStockTransfer(id: string, userId: string): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'Approved') throw new Error('Transfer must be Approved to be dispatched')
@@ -1471,7 +1564,7 @@ const api = {
         locationId: trf.sourceId,
         qty: -item.transferQty,
         balanceAfter: balance.currentStock,
-        user: 'System (Dispatch)',
+        user: userId,
         referenceId: trf.id
       })
 
@@ -1483,16 +1576,24 @@ const api = {
         locationId: 'LOC-TRANSIT',
         qty: item.transferQty,
         balanceAfter: transitBalance.currentStock,
-        user: 'System (Dispatch)',
+        user: userId,
         referenceId: trf.id
       })
     })
 
+    const oldStatus = trf.status
     trf.status = 'In Transit'
+    trf.dispatchedBy = userId
+    trf.dispatchedAt = new Date().toISOString()
+
+    addStockTransferAuditLog(id, 'Dispatch', userId, oldStatus, 'In Transit')
     return trf
   },
-  async receiveStockTransfer(id: string, receives: { itemId: string, qty: number }[]): Promise<StockTransfer> {
+  async receiveStockTransfer(id: string, userId: string, receives: { itemId: string, qty: number }[]): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'In Transit') throw new Error('Transfer must be In Transit to be received')
@@ -1537,18 +1638,27 @@ const api = {
           locationId: trf.destinationId,
           qty: rcv.qty,
           balanceAfter: destBalance.currentStock,
-          user: 'System (Receive)',
+          user: userId,
           referenceId: trf.id
         })
       }
     })
 
+    const oldStatus = trf.status
+    trf.receivedBy = userId
+    trf.receivedAt = new Date().toISOString()
+    
     checkTransferCompletion(trf)
+
+    addStockTransferAuditLog(id, 'Receive', userId, oldStatus, trf.status)
 
     return trf
   },
-  async shortCloseStockTransfer(id: string, shortCloses: { itemId: string, qty: number, reason: string }[]): Promise<StockTransfer> {
+  async shortCloseStockTransfer(id: string, userId: string, shortCloses: { itemId: string, qty: number, reason: string }[]): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'In Transit') throw new Error('Transfer must be In Transit to be short closed')
@@ -1590,7 +1700,7 @@ const api = {
           locationId: 'LOC-TRANSIT',
           qty: -sc.qty,
           balanceAfter: transitBalance ? transitBalance.currentStock : 0,
-          user: 'System (Transit Discrepancy)',
+          user: userId,
           referenceId: trf.id
         })
       }
@@ -1600,12 +1710,18 @@ const api = {
       trf.resolutionReason = shortCloses[0]?.reason || ''
     }
 
+    const oldStatus = trf.status
     checkTransferCompletion(trf)
+
+    addStockTransferAuditLog(id, 'Short Close', userId, oldStatus, trf.status, trf.resolutionReason)
 
     return trf
   },
-  async returnStockTransfer(id: string, returns: { itemId: string, qty: number, reason: string }[]): Promise<StockTransfer> {
+  async returnStockTransfer(id: string, userId: string, returns: { itemId: string, qty: number, reason: string }[]): Promise<StockTransfer> {
     await delay()
+    if (!userId) {
+      throw new Error('User ID is required for this action')
+    }
     const trf = stockTransfers.find(t => t.id === id)
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'In Transit') throw new Error('Transfer must be In Transit to be returned')
@@ -1650,7 +1766,7 @@ const api = {
           locationId: trf.sourceId,
           qty: ret.qty,
           balanceAfter: sourceBalance.currentStock,
-          user: 'System (Return)',
+          user: userId,
           referenceId: trf.id
         })
       }
@@ -1660,7 +1776,11 @@ const api = {
       trf.resolutionReason = returns[0]?.reason || ''
     }
 
+    const oldStatus = trf.status
+
     checkTransferCompletion(trf)
+
+    addStockTransferAuditLog(id, 'Return', userId, oldStatus, trf.status)
 
     return trf
   },
@@ -1672,6 +1792,10 @@ const api = {
   async getStockAdjustmentAuditLogs(id: string): Promise<StockAdjustmentAuditLog[]> {
     await delay()
     return JSON.parse(JSON.stringify(stockAdjustmentAuditLogs.filter(l => l.stockAdjustmentId === id)))
+  },
+  async getStockTransferAuditLogs(id: string): Promise<StockTransferAuditLog[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(stockTransferAuditLogs.filter(l => l.stockTransferId === id)))
   },
 
   async getStockOpnameAuditLogs(id: string): Promise<StockOpnameAuditLog[]> {
