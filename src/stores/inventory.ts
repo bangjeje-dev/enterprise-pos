@@ -1,12 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useProductStore } from './product'
+import { usePosSessionStore } from './posSession'
 import { mockErpApi, type Location, type InventoryBalance, type StockMovement, type StockTransfer, type StockTransferItem, type StockAdjustment, type StockAdjustmentItem } from '@/services/mockErpApi'
 
 export type { Location, InventoryBalance, StockMovement, StockTransfer, StockTransferItem, StockAdjustment, StockAdjustmentItem }
 
 export const useInventoryStore = defineStore('inventory', () => {
   const productStore = useProductStore()
+  const posSessionStore = usePosSessionStore()
+
+  const getCurrentUserId = () => {
+    return posSessionStore.activeSession?.cashierId || ''
+  }
 
   // State
   const locations = ref<Location[]>([])
@@ -218,7 +224,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      const created = await mockErpApi.createStockTransfer(transfer)
+      const realUser = getCurrentUserId()
+      const payload = { ...transfer, createdBy: realUser || transfer.createdBy }
+      const created = await mockErpApi.createStockTransfer(payload)
       await fetchInventoryData()
       return created
     } catch (err: any) {
@@ -233,8 +241,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.submitStockTransfer(id, userId || '')
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.submitStockTransfer(id, actualUserId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -248,8 +256,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.approveStockTransfer(id, userId || '')
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.approveStockTransfer(id, actualUserId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -263,8 +271,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.rejectStockTransfer(id, userId || '', reason)
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.rejectStockTransfer(id, actualUserId, reason)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -278,8 +286,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.dispatchStockTransfer(id, userId || '')
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.dispatchStockTransfer(id, actualUserId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -293,8 +301,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.receiveStockTransfer(id, userId || '', receives)
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.receiveStockTransfer(id, actualUserId, receives)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -308,8 +316,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.returnStockTransfer(id, userId || '', returns)
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.returnStockTransfer(id, actualUserId, returns)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -323,8 +331,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     isLoading.value = true
     error.value = null
     try {
-      // Phase 2G.2B will connect the real UI identity
-      await mockErpApi.shortCloseStockTransfer(id, userId || '', shortCloses)
+      const actualUserId = userId || getCurrentUserId()
+      await mockErpApi.shortCloseStockTransfer(id, actualUserId, shortCloses)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
