@@ -1,17 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useProductStore } from './product'
-import { usePosSessionStore } from './posSession'
+import { useAuthStore } from './auth'
 import { mockErpApi, type Location, type InventoryBalance, type StockMovement, type StockTransfer, type StockTransferItem, type StockAdjustment, type StockAdjustmentItem } from '@/services/mockErpApi'
 
 export type { Location, InventoryBalance, StockMovement, StockTransfer, StockTransferItem, StockAdjustment, StockAdjustmentItem }
 
 export const useInventoryStore = defineStore('inventory', () => {
   const productStore = useProductStore()
-  const posSessionStore = usePosSessionStore()
+  const authStore = useAuthStore()
 
   const getCurrentUserId = () => {
-    return posSessionStore.activeSession?.cashierId || ''
+    return authStore.currentUserId || ''
   }
 
   // State
