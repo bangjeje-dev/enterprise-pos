@@ -246,6 +246,26 @@ export interface StockAdjustment {
   status: 'Draft' | 'Pending Approval' | 'Approved' | 'Completed' | 'Rejected'
   items: StockAdjustmentItem[]
   createdBy: string
+  submittedBy?: string
+  submittedAt?: string
+  approvedBy?: string
+  approvedAt?: string
+  rejectedBy?: string
+  rejectedAt?: string
+  rejectionReason?: string
+  completedBy?: string
+  completedAt?: string
+}
+
+export interface StockAdjustmentAuditLog {
+  id: string
+  stockAdjustmentId: string
+  action: string
+  userId: string
+  timestamp: string
+  fromStatus?: StockAdjustment['status']
+  toStatus?: StockAdjustment['status']
+  reason?: string
 }
 
 // Types from Stock Opname domain
@@ -799,6 +819,8 @@ let stockOpnames: StockOpname[] = []
 let stockOpnameAuditLogs: StockOpnameAuditLog[] = []
 let stockOpnameCounter = 1
 
+let stockAdjustmentAuditLogs: StockAdjustmentAuditLog[] = []
+
 const STORAGE_KEY = 'enterprise_pos_db'
 
 function loadDb() {
@@ -826,6 +848,7 @@ function loadDb() {
       if (parsed.stockOpnames) stockOpnames = parsed.stockOpnames
       if (parsed.stockOpnameAuditLogs) stockOpnameAuditLogs = parsed.stockOpnameAuditLogs
       if (parsed.stockOpnameCounter) stockOpnameCounter = parsed.stockOpnameCounter
+      if (parsed.stockAdjustmentAuditLogs) stockAdjustmentAuditLogs = parsed.stockAdjustmentAuditLogs
     } catch (e) {
       console.error('Failed to load mock DB from localStorage:', e)
     }
@@ -854,7 +877,8 @@ function saveDb() {
       customers,
       stockOpnames,
       stockOpnameAuditLogs,
-      stockOpnameCounter
+      stockOpnameCounter,
+      stockAdjustmentAuditLogs
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   } catch (e) {
@@ -948,17 +972,50 @@ function assertStockOpnameTransition(from: StockOpnameStatus, to: StockOpnameSta
   }
 }
 
-function addStockOpnameAuditLog(stockOpnameId: string, action: string, userId: string, fromStatus?: StockOpnameStatus, toStatus?: StockOpnameStatus, reason?: string) {
-  stockOpnameAuditLogs.push({
-    id: `SO-LOG-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+function addStockOpnameAuditLog(
+  stockOpnameId: string,
+  action: string,
+  userId: string,
+  fromStatus?: StockOpnameStatus,
+  toStatus?: StockOpnameStatus,
+  reason?: string
+) {
+  const log: StockOpnameAuditLog = {
+    id: `SOA-${Date.now()}-${Math.random().toString(36).substring(7)}`,
     stockOpnameId,
     action,
-    fromStatus,
-    toStatus,
     userId,
     timestamp: new Date().toISOString(),
+    fromStatus,
+    toStatus,
     reason
-  })
+  }
+  stockOpnameAuditLogs.push(log)
+}
+
+function addStockAdjustmentAuditLog(
+  stockAdjustmentId: string,
+  action: string,
+  userId: string,
+  fromStatus?: StockAdjustment['status'],
+  toStatus?: StockAdjustment['status'],
+  reason?: string
+) {
+  const log: StockAdjustmentAuditLog = {
+    id: `SAA-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+    stockAdjustmentId,
+    action,
+    userId,
+    timestamp: new Date().toISOString(),
+    fromStatus,
+    toStatus,
+    reason
+  }
+  stockAdjustmentAuditLogs.push(log)
+}
+
+function generateStockOpnameId(): string {
+  return `SO-${Date.now()}`
 }
 
 // Helper
@@ -1538,7 +1595,7 @@ const api = {
       stockAdjustments.unshift(newAdjustment)
 
       // Execute the adjustment to formally decrement LOC-TRANSIT
-      await this.completeStockAdjustment(newAdjustment.id)
+      await this.completeStockAdjustment(newAdjustment.id, 'System')
     }
 
     if (shortCloses.length > 0 && !trf.resolutionReason) {
@@ -1614,43 +1671,77 @@ const api = {
     await delay()
     return JSON.parse(JSON.stringify(stockAdjustments))
   },
-  async createStockAdjustment(adjustment: Omit<StockAdjustment, 'id' | 'date' | 'status'>): Promise<StockAdjustment> {
+  async getStockAdjustmentAuditLogs(id: string): Promise<StockAdjustmentAuditLog[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(stockAdjustmentAuditLogs.filter(l => l.stockAdjustmentId === id)))
+  },
+
+  async getStockOpnameAuditLogs(id: string): Promise<StockOpnameAuditLog[]> {
+    await delay()
+    return JSON.parse(JSON.stringify(stockOpnameAuditLogs.filter(l => l.stockOpnameId === id)))
+  },
+  async createStockAdjustment(adjustment: Omit<StockAdjustment, 'id' | 'date' | 'status'>, userId: string): Promise<StockAdjustment> {
     await delay()
     if (adjustment.locationId === 'LOC-TRANSIT') throw new Error('Stock Adjustment is not allowed for LOC-TRANSIT.')
+
+    for (const item of adjustment.items) {
+      if (item.adjustedQty < 0) {
+        throw new Error(`Negative adjustedQty is not allowed. Adjustments must use absolute quantities with the appropriate Increase/Decrease type.`)
+      }
+    }
 
     const newAdjustment: StockAdjustment = {
       ...adjustment,
       id: `ADJ-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
       date: new Date().toISOString(),
-      status: 'Draft'
+      status: 'Draft',
+      createdBy: userId
     }
     stockAdjustments.unshift(newAdjustment)
+    addStockAdjustmentAuditLog(newAdjustment.id, 'Create', userId, undefined, 'Draft')
     return newAdjustment
   },
-  async submitStockAdjustmentForApproval(id: string): Promise<StockAdjustment> {
+  async submitStockAdjustmentForApproval(id: string, userId: string): Promise<StockAdjustment> {
     await delay()
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Draft') throw new Error('Only Draft adjustments can be submitted for approval')
 
+    const oldStatus = adj.status
     adj.status = 'Pending Approval'
+    adj.submittedBy = userId
+    adj.submittedAt = new Date().toISOString()
+
+    addStockAdjustmentAuditLog(id, 'Submit For Approval', userId, oldStatus, 'Pending Approval')
     return adj
   },
-  async approveStockAdjustment(id: string): Promise<StockAdjustment> {
+  async approveStockAdjustment(id: string, userId: string): Promise<StockAdjustment> {
     await delay()
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Pending Approval') throw new Error('Adjustment must be Pending Approval to be approved')
+    if (adj.createdBy === userId) throw new Error('Maker/Checker violation: Creator cannot approve their own Stock Adjustment')
 
+    const oldStatus = adj.status
     adj.status = 'Approved'
+    adj.approvedBy = userId
+    adj.approvedAt = new Date().toISOString()
+
+    addStockAdjustmentAuditLog(id, 'Approve', userId, oldStatus, 'Approved')
     return adj
   },
-  async completeStockAdjustment(id: string): Promise<StockAdjustment> {
+  async completeStockAdjustment(id: string, userId: string): Promise<StockAdjustment> {
     await delay() // keep this even if called from shortClose, it's fine.
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
     if (adj.status !== 'Approved') throw new Error('Adjustment must be Approved to be completed')
     if (adj.locationId === 'LOC-TRANSIT') throw new Error('Stock Adjustment is not allowed for LOC-TRANSIT.')
+
+    for (const item of adj.items) {
+      if (item.adjustedQty < 0) {
+        throw new Error(`Negative adjustedQty is not allowed.`)
+      }
+    }
 
     // 1. Validate ALL items first (Atomicity)
     if (adj.type === 'Decrease') {
@@ -1693,19 +1784,31 @@ const api = {
         locationId: adj.locationId,
         qty: qtyDiff,
         balanceAfter: balance ? balance.currentStock : qtyDiff,
-        user: 'System (Completed)',
+        user: userId,
         referenceId: adj.id
       })
     })
 
+    const oldStatus = adj.status
     adj.status = 'Completed'
+    adj.completedBy = userId
+    adj.completedAt = new Date().toISOString()
+    
+    addStockAdjustmentAuditLog(id, 'Complete', userId, oldStatus, 'Completed')
     return adj
   },
-  async rejectStockAdjustment(id: string): Promise<StockAdjustment> {
+  async rejectStockAdjustment(id: string, userId: string, reason: string): Promise<StockAdjustment> {
     await delay()
     const adj = stockAdjustments.find(a => a.id === id)
     if (!adj) throw new Error('Adjustment not found')
+    
+    const oldStatus = adj.status
     adj.status = 'Rejected'
+    adj.rejectedBy = userId
+    adj.rejectedAt = new Date().toISOString()
+    adj.rejectionReason = reason
+
+    addStockAdjustmentAuditLog(id, 'Reject', userId, oldStatus, 'Rejected', reason)
     return adj
   },
 

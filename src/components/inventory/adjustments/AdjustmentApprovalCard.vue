@@ -5,6 +5,15 @@ defineProps<{
   status: 'Draft' | 'Pending Approval' | 'Approved' | 'Completed' | 'Rejected'
   createdBy?: string
   date?: string
+  submittedBy?: string
+  submittedAt?: string
+  approvedBy?: string
+  approvedAt?: string
+  rejectedBy?: string
+  rejectedAt?: string
+  rejectionReason?: string
+  completedBy?: string
+  completedAt?: string
 }>()
 </script>
 
@@ -43,6 +52,30 @@ defineProps<{
       <div class="flex justify-between border-b border-gray-100 pb-2">
         <span class="text-gray-500">Date</span>
         <span class="font-medium text-gray-900">{{ new Date(date!).toLocaleString('id-ID') }}</span>
+      </div>
+      
+      <div v-if="submittedBy" class="flex justify-between border-b border-gray-100 pb-2">
+        <span class="text-gray-500">Submitted By</span>
+        <span class="font-medium text-gray-900">{{ submittedBy }} ({{ new Date(submittedAt!).toLocaleString('id-ID') }})</span>
+      </div>
+      
+      <div v-if="approvedBy" class="flex justify-between border-b border-gray-100 pb-2">
+        <span class="text-gray-500">Approved By</span>
+        <span class="font-medium text-blue-600">{{ approvedBy }} ({{ new Date(approvedAt!).toLocaleString('id-ID') }})</span>
+      </div>
+      
+      <div v-if="rejectedBy" class="flex justify-between border-b border-gray-100 pb-2">
+        <span class="text-gray-500">Rejected By</span>
+        <span class="font-medium text-red-600">{{ rejectedBy }} ({{ new Date(rejectedAt!).toLocaleString('id-ID') }})</span>
+      </div>
+      <div v-if="rejectionReason" class="flex flex-col border-b border-gray-100 pb-2">
+        <span class="text-gray-500">Rejection Reason</span>
+        <span class="font-medium text-red-600 italic mt-1">{{ rejectionReason }}</span>
+      </div>
+      
+      <div v-if="completedBy" class="flex justify-between border-b border-gray-100 pb-2">
+        <span class="text-gray-500">Completed By</span>
+        <span class="font-medium text-green-600">{{ completedBy }} ({{ new Date(completedAt!).toLocaleString('id-ID') }})</span>
       </div>
     </div>
     

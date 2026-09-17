@@ -142,11 +142,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function createAdjustment(adjustment: Omit<StockAdjustment, 'id' | 'date' | 'status'>) {
+  async function createAdjustment(adjustment: Omit<StockAdjustment, 'id' | 'date' | 'status'>, userId: string = 'Current User') {
     isLoading.value = true
     error.value = null
     try {
-      const created = await mockErpApi.createStockAdjustment(adjustment)
+      const created = await mockErpApi.createStockAdjustment(adjustment, userId)
       await fetchInventoryData()
       return created
     } catch (err: any) {
@@ -157,11 +157,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function submitAdjustment(id: string) {
+  async function submitAdjustment(id: string, userId: string = 'Current User') {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.submitStockAdjustmentForApproval(id)
+      await mockErpApi.submitStockAdjustmentForApproval(id, userId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -171,11 +171,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function approveAdjustment(id: string) {
+  async function approveAdjustment(id: string, userId: string = 'Current User') {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.approveStockAdjustment(id)
+      await mockErpApi.approveStockAdjustment(id, userId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -185,11 +185,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function completeAdjustment(id: string) {
+  async function completeAdjustment(id: string, userId: string = 'Current User') {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.completeStockAdjustment(id)
+      await mockErpApi.completeStockAdjustment(id, userId)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message
@@ -199,11 +199,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function rejectAdjustment(id: string) {
+  async function rejectAdjustment(id: string, userId: string = 'Current User', reason: string = 'Rejected by User') {
     isLoading.value = true
     error.value = null
     try {
-      await mockErpApi.rejectStockAdjustment(id)
+      await mockErpApi.rejectStockAdjustment(id, userId, reason)
       await fetchInventoryData()
     } catch (err: any) {
       error.value = err.message

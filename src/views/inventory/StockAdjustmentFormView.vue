@@ -25,8 +25,20 @@ const adjustment = ref<StockAdjustment | any>({
   notes: '',
   status: 'Draft',
   items: [],
-  createdBy: 'Current User'
+  createdBy: 'Store Manager',
+  submittedBy: '',
+  submittedAt: '',
+  approvedBy: '',
+  approvedAt: '',
+  rejectedBy: '',
+  rejectedAt: '',
+  rejectionReason: '',
+  completedBy: '',
+  completedAt: ''
 })
+
+const currentUser = ref('Store Manager')
+
 
 const attachments = ref<File[]>([])
 
@@ -93,16 +105,16 @@ const submitForApproval = async () => {
         reason: adjustment.value.reason,
         notes: adjustment.value.notes,
         items: adjustment.value.items,
-        createdBy: 'Store Manager'
-      })
+        createdBy: currentUser.value
+      }, currentUser.value)
       if (created) {
-        await store.submitAdjustment(created.id)
+        await store.submitAdjustment(created.id, currentUser.value)
         showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
         router.push(`/inventory/adjustments/${created.id}`)
       }
     } else {
       if (adjustment.value.id && adjustment.value.status === 'Draft') {
-        await store.submitAdjustment(adjustment.value.id)
+        await store.submitAdjustment(adjustment.value.id, currentUser.value)
         showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
         refreshLocalCopy()
       }
@@ -127,7 +139,7 @@ const approve = async () => {
   if (isApproving.value) return
   isApproving.value = true
   try {
-    await store.approveAdjustment(adjustment.value.id)
+    await store.approveAdjustment(adjustment.value.id, currentUser.value)
     showToast('Adjustment approved', 'The adjustment is ready to be completed.', 'success')
     refreshLocalCopy()
   } catch (err: any) {
@@ -222,6 +234,15 @@ const complete = async () => {
           :status="adjustment.status"
           :createdBy="adjustment.createdBy"
           :date="adjustment.date"
+          :submittedBy="adjustment.submittedBy"
+          :submittedAt="adjustment.submittedAt"
+          :approvedBy="adjustment.approvedBy"
+          :approvedAt="adjustment.approvedAt"
+          :rejectedBy="adjustment.rejectedBy"
+          :rejectedAt="adjustment.rejectedAt"
+          :rejectionReason="adjustment.rejectionReason"
+          :completedBy="adjustment.completedBy"
+          :completedAt="adjustment.completedAt"
         />
         
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 text-sm text-gray-600">
