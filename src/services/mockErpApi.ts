@@ -1553,6 +1553,7 @@ const api = {
     if (!trf) throw new Error('Transfer not found')
     if (trf.status !== 'In Transit') throw new Error('Transfer must be In Transit to be short closed')
 
+    // 1. Validate constraints BEFORE mutating
     shortCloses.forEach(sc => {
       const item = trf.items.find(i => i.id === sc.itemId)
       if (!item) throw new Error('Transfer item not found')
@@ -1560,43 +1561,40 @@ const api = {
       if (sc.qty > unresolved) {
         throw new Error(`Cannot over-resolve item`)
       }
+
+      if (sc.qty > 0) {
+        const transitBalance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === 'LOC-TRANSIT')
+        const currentTransit = transitBalance ? transitBalance.currentStock : 0
+        if (sc.qty > currentTransit) {
+          throw new Error(`Cannot short close item. Requested: ${sc.qty}, Available in LOC-TRANSIT: ${currentTransit}`)
+        }
+      }
     })
 
-    const adjItems: StockAdjustmentItem[] = []
-
+    // 2. Apply mutations
     shortCloses.forEach(sc => {
       const item = trf.items.find(i => i.id === sc.itemId)!
       item.shortClosedQty += sc.qty
 
       if (sc.qty > 0) {
         let transitBalance = inventoryBalances.find(b => b.productId === item.productId && b.locationId === 'LOC-TRANSIT')
-        adjItems.push({
-          id: `ADI-${Date.now()}-${item.productId}`,
+        if (transitBalance) {
+          transitBalance.currentStock -= sc.qty
+        }
+
+        recentMovements.unshift({
+          id: `MV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          date: new Date().toISOString(),
+          type: 'Adjustment',
           productId: item.productId,
-          currentStock: transitBalance ? transitBalance.currentStock : 0,
-          adjustedQty: sc.qty,
-          finalStock: transitBalance ? transitBalance.currentStock - sc.qty : 0
+          locationId: 'LOC-TRANSIT',
+          qty: -sc.qty,
+          balanceAfter: transitBalance ? transitBalance.currentStock : 0,
+          user: 'System (Transit Discrepancy)',
+          referenceId: trf.id
         })
       }
     })
-
-    if (adjItems.length > 0) {
-      const newAdjustment: StockAdjustment = {
-        id: `ADJ-${new Date().getFullYear()}${(new Date().getMonth()+1).toString().padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-        date: new Date().toISOString(),
-        locationId: 'LOC-TRANSIT',
-        type: 'Decrease',
-        reason: shortCloses[0]?.reason || 'Transit Discrepancy',
-        notes: `Short closed from transfer ${trf.id}`,
-        status: 'Approved',
-        items: adjItems,
-        createdBy: 'System'
-      }
-      stockAdjustments.unshift(newAdjustment)
-
-      // Execute the adjustment to formally decrement LOC-TRANSIT
-      await this.completeStockAdjustment(newAdjustment.id, 'System')
-    }
 
     if (shortCloses.length > 0 && !trf.resolutionReason) {
       trf.resolutionReason = shortCloses[0]?.reason || ''
