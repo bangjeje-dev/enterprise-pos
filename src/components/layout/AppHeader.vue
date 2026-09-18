@@ -70,27 +70,23 @@ const toggleLanguage = () => {
           
           <!-- User Profile -->
           <div class="flex items-center ml-1 lg:ml-2">
-            <!-- Dev User Switcher -->
-            <div class="mr-2 hidden md:block">
-              <select 
-                class="bg-gray-50 border border-gray-200 text-gray-900 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1"
-                :value="authStore.currentUserId"
-                @change="(e) => authStore.switchUser((e.target as HTMLSelectElement).value)"
-                title="Dev User Switcher"
-              >
-                <option v-for="u in authStore.mockUsers" :key="u.id" :value="u.id">{{ u.id }}</option>
-              </select>
-            </div>
-            
-            <button class="flex items-center gap-2 text-sm bg-transparent rounded-full focus:ring-4 focus:ring-gray-100 p-1 transition-all">
-              <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold border border-blue-200">
+            <div class="flex items-center gap-2 text-sm bg-transparent p-1">
+              <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold border border-blue-200 shrink-0">
                 {{ authStore.currentUserName?.substring(0, 2).toUpperCase() || '' }}
               </div>
               <div class="hidden lg:block text-left">
                 <div class="text-sm font-semibold text-gray-900 leading-none mb-0.5">{{ authStore.currentUserName }}</div>
-                <div class="text-xs text-gray-500 leading-none">{{ authStore.currentUserRole }}</div>
+                <div class="text-xs text-gray-500 leading-none mb-1">{{ authStore.currentUserRole }}</div>
+                <select 
+                  class="bg-gray-50 border border-gray-200 text-gray-900 text-[10px] font-mono rounded focus:ring-blue-500 focus:border-blue-500 block px-1 py-0"
+                  :value="authStore.currentUserId"
+                  @change="(e) => authStore.switchUser((e.target as HTMLSelectElement).value)"
+                  title="Dev User Switcher"
+                >
+                  <option v-for="u in authStore.mockUsers" :key="u.id" :value="u.id">{{ u.id }}</option>
+                </select>
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </div>

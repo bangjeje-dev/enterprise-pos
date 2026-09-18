@@ -25,7 +25,6 @@ const adjustment = ref<StockAdjustment | any>({
   notes: '',
   status: 'Draft',
   items: [],
-  createdBy: 'Store Manager',
   submittedBy: '',
   submittedAt: '',
   approvedBy: '',
@@ -37,7 +36,8 @@ const adjustment = ref<StockAdjustment | any>({
   completedAt: ''
 })
 
-const currentUser = ref('Store Manager')
+
+
 
 
 const attachments = ref<File[]>([])
@@ -105,16 +105,16 @@ const submitForApproval = async () => {
         reason: adjustment.value.reason,
         notes: adjustment.value.notes,
         items: adjustment.value.items,
-        createdBy: currentUser.value
-      }, currentUser.value)
+        createdBy: ''
+      })
       if (created) {
-        await store.submitAdjustment(created.id, currentUser.value)
+        await store.submitAdjustment(created.id)
         showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
         router.push(`/inventory/adjustments/${created.id}`)
       }
     } else {
       if (adjustment.value.id && adjustment.value.status === 'Draft') {
-        await store.submitAdjustment(adjustment.value.id, currentUser.value)
+        await store.submitAdjustment(adjustment.value.id)
         showToast('Adjustment submitted successfully', 'Stock adjustment has been submitted for approval.', 'success')
         refreshLocalCopy()
       }
@@ -139,7 +139,7 @@ const approve = async () => {
   if (isApproving.value) return
   isApproving.value = true
   try {
-    await store.approveAdjustment(adjustment.value.id, currentUser.value)
+    await store.approveAdjustment(adjustment.value.id)
     showToast('Adjustment approved', 'The adjustment is ready to be completed.', 'success')
     refreshLocalCopy()
   } catch (err: any) {

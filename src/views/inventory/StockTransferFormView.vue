@@ -23,8 +23,7 @@ const transfer = ref<StockTransfer | any>({
   destinationId: '',
   notes: '',
   status: 'Draft',
-  items: [],
-  createdBy: 'Current User'
+  items: []
 })
 
 const attachments = ref<File[]>([])
@@ -69,7 +68,7 @@ const submitForApproval = async () => {
         destinationId: transfer.value.destinationId,
         notes: transfer.value.notes,
         items: transfer.value.items,
-        createdBy: 'Store Manager'
+        createdBy: ''
       })
       if (created) {
         await store.submitTransfer(created.id)
