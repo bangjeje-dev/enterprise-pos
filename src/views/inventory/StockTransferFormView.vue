@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInventoryStore, type StockTransfer } from '@/stores/inventory'
-import { ArrowLeft, Save, CheckCircle, Truck, PackageCheck, Loader2, XCircle } from '@lucide/vue'
+import { ArrowLeft, Save, CheckCircle, Truck, PackageCheck, Loader2, XCircle, Printer } from '@lucide/vue'
 import { useToast } from '@/composables/useToast'
 
 import TransferDetailsCard from '@/components/inventory/transfers/TransferDetailsCard.vue'
@@ -271,6 +271,16 @@ const receive = async () => {
         </div>
       </div>
       <div class="mt-4 sm:mt-0 flex flex-wrap gap-3 justify-end">
+        <!-- Print Button -->
+        <button 
+          v-if="!isNew"
+          @click="router.push(`/inventory/transfers/${transfer.id}/print`)"
+          class="inline-flex items-center text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 font-medium rounded-lg text-sm px-4 py-2.5 transition-colors"
+        >
+          <Printer class="w-4 h-4 mr-2" />
+          Print Transfer
+        </button>
+
         <!-- Actions based on state -->
         <button v-if="isNew || transfer.status === 'Draft'" @click="submitForApproval" :disabled="isSubmitting" class="inline-flex items-center text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />

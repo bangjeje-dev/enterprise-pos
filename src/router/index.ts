@@ -125,6 +125,11 @@ const router = createRouter({
           component: () => import('@/views/inventory/StockTransfersView.vue')
         },
         {
+          path: 'inventory/transfers/:id/print',
+          name: 'inventory-transfer-print',
+          component: () => import('@/views/inventory/StockTransferPrintView.vue')
+        },
+        {
           path: 'inventory/transfers/:id',
           name: 'inventory-transfer-form',
           component: () => import('@/views/inventory/StockTransferFormView.vue')
