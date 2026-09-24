@@ -73,12 +73,12 @@ export const usePosSessionStore = defineStore('posSession', () => {
     }
   }
 
-  const closeRegister = async (actualCash: number, varianceReason?: string) => {
+  const closeRegister = async (cashCounts: { denomination: number, quantity: number }[], varianceReason?: string) => {
     if (!activeSession.value) throw new Error('No active session')
     isLoading.value = true
     error.value = null
     try {
-      const session = await mockErpApi.confirmCloseRegister(activeSession.value.id, actualCash, varianceReason)
+      const session = await mockErpApi.confirmCloseRegister(activeSession.value.id, cashCounts, varianceReason)
       activeSession.value = null
       localStorage.removeItem('pos_active_session_id')
       return session

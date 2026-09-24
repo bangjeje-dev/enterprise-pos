@@ -164,6 +164,12 @@ export interface Register {
 
 export type RegisterSessionStatus = 'OPEN' | 'CLOSED'
 
+export interface CashDenominationCount {
+  denomination: number
+  quantity: number
+  subtotal: number
+}
+
 export interface RegisterSession {
   id: string
   registerId: string
@@ -178,6 +184,7 @@ export interface RegisterSession {
   actualCash?: number
   variance?: number
   varianceReason?: string
+  cashCounts?: CashDenominationCount[]
   status: RegisterSessionStatus
 }
 
@@ -2634,13 +2641,34 @@ const api = {
     }
   },
 
-  async confirmCloseRegister(sessionId: string, actualCash: number, varianceReason?: string): Promise<RegisterSession> {
+  async confirmCloseRegister(sessionId: string, cashCounts: { denomination: number, quantity: number }[], varianceReason?: string): Promise<RegisterSession> {
     await delay(500)
     const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
     if (!session) throw new Error('Active session not found or already closed')
 
-    if (typeof actualCash !== 'number' || actualCash < 0) {
-      throw new Error('Actual Cash must be a valid positive number')
+    const validDenominations = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100]
+    
+    let totalCountedCash = 0
+    const processedCounts: CashDenominationCount[] = []
+
+    for (const count of cashCounts) {
+      if (!validDenominations.includes(count.denomination)) {
+        throw new Error(`Invalid denomination: ${count.denomination}`)
+      }
+      if (typeof count.quantity !== 'number' || count.quantity < 0 || !Number.isInteger(count.quantity)) {
+        throw new Error(`Invalid quantity for denomination ${count.denomination}`)
+      }
+      
+      const subtotal = count.denomination * count.quantity
+      totalCountedCash += subtotal
+      
+      if (count.quantity > 0) {
+        processedCounts.push({
+          denomination: count.denomination,
+          quantity: count.quantity,
+          subtotal
+        })
+      }
     }
 
     const preview = await this.previewCloseRegister(sessionId)
@@ -2648,8 +2676,9 @@ const api = {
     session.status = 'CLOSED'
     session.closedAt = new Date().toISOString()
     session.expectedCash = preview.expectedCash
-    session.actualCash = actualCash
-    session.variance = actualCash - preview.expectedCash
+    session.actualCash = totalCountedCash
+    session.variance = totalCountedCash - preview.expectedCash
+    session.cashCounts = processedCounts
     if (varianceReason) session.varianceReason = varianceReason
 
     return { ...session }

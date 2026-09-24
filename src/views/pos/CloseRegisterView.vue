@@ -8,12 +8,28 @@ const router = useRouter()
 const posSession = usePosSessionStore()
 
 const currentStep = ref<1 | 2 | 3>(1)
-const actualCashString = ref<string>('')
 const varianceReason = ref<string>('')
 
+const denominationsList = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100]
+const cashCounts = ref(
+  denominationsList.map(denom => ({
+    denomination: denom,
+    quantityString: ''
+  }))
+)
+
+const processedCashCounts = computed(() => {
+  return cashCounts.value.map(c => {
+    const qty = parseInt(c.quantityString, 10)
+    return {
+      denomination: c.denomination,
+      quantity: isNaN(qty) || qty < 0 ? 0 : qty
+    }
+  })
+})
+
 const actualCash = computed(() => {
-  const val = parseInt(actualCashString.value.replace(/\D/g, ''), 10)
-  return isNaN(val) ? 0 : val
+  return processedCashCounts.value.reduce((sum, item) => sum + (item.denomination * item.quantity), 0)
 })
 
 const isLoading = ref(false)
@@ -28,15 +44,16 @@ const formatCurrency = (val: number) => {
   }).format(val)
 }
 
-const onActualCashInput = (e: Event) => {
+const onQuantityInput = (e: Event, index: number) => {
   const target = e.target as HTMLInputElement
   const digits = target.value.replace(/\D/g, '')
-  if (digits === '') {
-    actualCashString.value = ''
-    return
+  if (cashCounts.value[index]) {
+    if (digits === '') {
+      cashCounts.value[index].quantityString = ''
+      return
+    }
+    cashCounts.value[index].quantityString = parseInt(digits, 10).toString()
   }
-  const num = parseInt(digits, 10)
-  actualCashString.value = new Intl.NumberFormat('id-ID').format(num)
 }
 
 const handleCancel = () => {
@@ -48,10 +65,6 @@ const handleBackToCount = () => {
 }
 
 const handleSubmitCount = async () => {
-  if (actualCashString.value === '' || actualCash.value < 0) {
-    error.value = 'Please enter a valid cash amount.'
-    return
-  }
 
   isLoading.value = true
   error.value = null
@@ -75,7 +88,7 @@ const handleConfirmClose = async () => {
   error.value = null
   try {
     const closedSession = await posSession.closeRegister(
-      actualCash.value, 
+      processedCashCounts.value, 
       varianceAmount.value !== 0 ? varianceReason.value : undefined
     )
     if (closedSession && closedSession.closedAt && summaryData.value) {
@@ -148,24 +161,46 @@ onMounted(() => {
       <!-- Consistent Main Container -->
       <div class="w-full max-w-5xl flex flex-col h-full">
 
-        <!-- Step 1: Blind Count -->
+        <!-- Step 1: Denomination Count -->
         <div v-if="currentStep === 1" class="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 shrink-0 max-w-2xl mx-auto">
           <h3 class="text-lg font-bold text-gray-900 mb-2 border-b pb-4">Count Cash</h3>
-          <p class="text-gray-600 my-6 font-medium text-sm">
-            Count the physical cash in your drawer before closing the register.
+          <p class="text-gray-600 my-4 font-medium text-sm">
+            Enter the quantity of each denomination in your drawer.
           </p>
-          <div class="mb-8">
-            <label class="block text-sm font-bold text-gray-700 mb-2">Actual Cash (Rp)</label>
-            <input 
-              type="text" 
-              inputmode="numeric"
-              :value="actualCashString"
-              @input="onActualCashInput"
-              class="block w-full text-right text-3xl font-bold py-4 px-4 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 placeholder:text-base placeholder:font-normal [&::placeholder]:text-left"
-              placeholder="Enter amount"
-              :disabled="isLoading"
-              autofocus
-            />
+          
+          <div class="mb-6">
+            <div class="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-2">
+              <div class="col-span-4">Denomination</div>
+              <div class="col-span-4 text-center">Quantity</div>
+              <div class="col-span-4 text-right">Subtotal</div>
+            </div>
+            
+            <div class="space-y-2">
+              <div v-for="(item, index) in cashCounts" :key="item.denomination" class="grid grid-cols-12 gap-4 items-center bg-gray-50 p-2 rounded-lg">
+                <div class="col-span-4 font-medium text-gray-900">
+                  {{ formatCurrency(item.denomination) }}
+                </div>
+                <div class="col-span-4">
+                  <input 
+                    type="text" 
+                    inputmode="numeric"
+                    :value="item.quantityString"
+                    @input="e => onQuantityInput(e, index)"
+                    class="block w-full text-center text-sm py-2 px-2 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0"
+                    :disabled="isLoading"
+                  />
+                </div>
+                <div class="col-span-4 text-right font-medium text-gray-700">
+                  {{ formatCurrency(item.denomination * (parseInt(item.quantityString) || 0)) }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex justify-between items-center pt-4 border-t-2 border-gray-100">
+            <span class="font-bold text-gray-700 text-lg">Total Counted Cash</span>
+            <span class="font-bold text-blue-600 text-2xl">{{ formatCurrency(actualCash) }}</span>
           </div>
         </div>
 
@@ -310,7 +345,7 @@ onMounted(() => {
             <button 
               @click="handleSubmitCount" 
               class="py-3 px-8 bg-blue-600 rounded-lg text-sm font-bold text-white hover:bg-blue-700 flex items-center disabled:opacity-50"
-              :disabled="isLoading || actualCashString === '' || actualCash < 0"
+              :disabled="isLoading"
             >
               Continue
             </button>
