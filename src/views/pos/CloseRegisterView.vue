@@ -79,11 +79,6 @@ const handleSubmitCount = async () => {
 }
 
 const handleConfirmClose = async () => {
-  if (varianceAmount.value !== 0 && varianceReason.value.trim() === '') {
-    error.value = 'A reason must be provided for cash variances.'
-    return
-  }
-
   isLoading.value = true
   error.value = null
   try {
@@ -282,16 +277,7 @@ onMounted(() => {
                   </span>
                 </div>
                 
-                <div v-if="varianceAmount !== 0" class="pt-4 mt-4 border-t border-gray-100">
-                  <label class="block text-sm font-bold text-gray-700 mb-2">Variance Reason</label>
-                  <textarea 
-                    v-model="varianceReason"
-                    rows="3"
-                    class="block w-full text-sm py-2 px-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
-                    placeholder="Explain the reason for the cash discrepancy..."
-                    :disabled="isLoading"
-                  ></textarea>
-                </div>
+                <!-- Variance Reason UI hidden by business decision -->
               </div>
             </div>
           </div>
@@ -375,7 +361,7 @@ onMounted(() => {
             <button 
               @click="handleConfirmClose" 
               class="py-3 px-8 bg-blue-600 rounded-lg text-sm font-bold text-white hover:bg-blue-700 flex items-center disabled:opacity-50"
-              :disabled="isLoading || (varianceAmount !== 0 && varianceReason.trim() === '')"
+              :disabled="isLoading"
             >
               <CheckCircle2 class="w-4 h-4 mr-2" />
               Confirm Close
