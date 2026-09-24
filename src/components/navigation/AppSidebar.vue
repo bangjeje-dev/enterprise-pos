@@ -30,14 +30,9 @@ const navigation = [
     ]
   },
   {
-    name: 'Catalog',
-    icon: Tags,
-    children: [
-      { name: 'Products', path: '/catalog/products' },
-      { name: 'Product SKUs', path: '/catalog/product-skus' },
-      { name: 'Type Product', path: '/catalog/type-products' }
-      // { name: 'Modifiers', path: '/catalog/modifiers' }
-    ]
+    name: 'Products',
+    path: '/catalog/products',
+    icon: Tags
   },
   {
     name: 'Inventory',
