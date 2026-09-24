@@ -9,6 +9,7 @@ const posSession = usePosSessionStore()
 
 const currentStep = ref<1 | 2 | 3>(1)
 const actualCashString = ref<string>('')
+const varianceReason = ref<string>('')
 
 const actualCash = computed(() => {
   const val = parseInt(actualCashString.value.replace(/\D/g, ''), 10)
@@ -65,10 +66,18 @@ const handleSubmitCount = async () => {
 }
 
 const handleConfirmClose = async () => {
+  if (varianceAmount.value !== 0 && varianceReason.value.trim() === '') {
+    error.value = 'A reason must be provided for cash variances.'
+    return
+  }
+
   isLoading.value = true
   error.value = null
   try {
-    const closedSession = await posSession.closeRegister(actualCash.value)
+    const closedSession = await posSession.closeRegister(
+      actualCash.value, 
+      varianceAmount.value !== 0 ? varianceReason.value : undefined
+    )
     if (closedSession && closedSession.closedAt && summaryData.value) {
       summaryData.value.session.closedAt = closedSession.closedAt
     }
@@ -225,6 +234,17 @@ onMounted(() => {
                     {{ varianceAmount > 0 ? '+' : '' }}{{ formatCurrency(varianceAmount) }}
                   </span>
                 </div>
+                
+                <div v-if="varianceAmount !== 0" class="pt-4 mt-4 border-t border-gray-100">
+                  <label class="block text-sm font-bold text-gray-700 mb-2">Variance Reason</label>
+                  <textarea 
+                    v-model="varianceReason"
+                    rows="3"
+                    class="block w-full text-sm py-2 px-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
+                    placeholder="Explain the reason for the cash discrepancy..."
+                    :disabled="isLoading"
+                  ></textarea>
+                </div>
               </div>
             </div>
           </div>
@@ -308,7 +328,7 @@ onMounted(() => {
             <button 
               @click="handleConfirmClose" 
               class="py-3 px-8 bg-blue-600 rounded-lg text-sm font-bold text-white hover:bg-blue-700 flex items-center disabled:opacity-50"
-              :disabled="isLoading"
+              :disabled="isLoading || (varianceAmount !== 0 && varianceReason.trim() === '')"
             >
               <CheckCircle2 class="w-4 h-4 mr-2" />
               Confirm Close

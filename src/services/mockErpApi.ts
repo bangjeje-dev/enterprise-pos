@@ -177,6 +177,7 @@ export interface RegisterSession {
   expectedCash?: number
   actualCash?: number
   variance?: number
+  varianceReason?: string
   status: RegisterSessionStatus
 }
 
@@ -2633,7 +2634,7 @@ const api = {
     }
   },
 
-  async confirmCloseRegister(sessionId: string, actualCash: number): Promise<RegisterSession> {
+  async confirmCloseRegister(sessionId: string, actualCash: number, varianceReason?: string): Promise<RegisterSession> {
     await delay(500)
     const session = registerSessions.find(s => s.id === sessionId && s.status === 'OPEN')
     if (!session) throw new Error('Active session not found or already closed')
@@ -2649,6 +2650,7 @@ const api = {
     session.expectedCash = preview.expectedCash
     session.actualCash = actualCash
     session.variance = actualCash - preview.expectedCash
+    if (varianceReason) session.varianceReason = varianceReason
 
     return { ...session }
   },
