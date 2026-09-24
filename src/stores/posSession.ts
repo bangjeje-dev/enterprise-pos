@@ -8,6 +8,10 @@ export const usePosSessionStore = defineStore('posSession', () => {
   const error = ref<string | null>(null)
 
   // Fetch available locations, registers, cashiers for the Open Register form
+  const getSessions = async (): Promise<RegisterSession[]> => {
+    return await mockErpApi.getRegisterSessions()
+  }
+
   const getLocations = async (): Promise<Location[]> => {
     return await mockErpApi.getLocations()
   }
@@ -94,6 +98,7 @@ export const usePosSessionStore = defineStore('posSession', () => {
     openRegister,
     previewCloseRegister,
     closeRegister,
+    getSessions,
     getLocations,
     getRegisters,
     getCashiers

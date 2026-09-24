@@ -2565,8 +2565,12 @@ const api = {
     // Mock resolve location name, normally from db
     const locationName = payload.locationId === 'LOC-2' ? 'Main Branch' : payload.locationId
 
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const todaySessions = registerSessions.filter(s => s.id.startsWith(`SHF-${dateStr}`))
+    const seq = (todaySessions.length + 1).toString().padStart(3, '0')
+
     const newSession: RegisterSession = {
-      id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `SHF-${dateStr}-${seq}`,
       registerId: payload.registerId,
       locationId: payload.locationId,
       locationName: locationName,
@@ -2579,6 +2583,11 @@ const api = {
 
     registerSessions.push(newSession)
     return { ...newSession }
+  },
+
+  async getRegisterSessions(): Promise<RegisterSession[]> {
+    await delay(200)
+    return [...registerSessions].sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime())
   },
 
   async getActiveSession(sessionId: string): Promise<RegisterSession> {
