@@ -168,37 +168,49 @@ onMounted(() => {
             Enter the quantity of each denomination in your drawer.
           </p>
           
-          <div class="mb-6">
-            <div class="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-2">
-              <div class="col-span-4">Denomination</div>
-              <div class="col-span-4 text-center">Quantity</div>
-              <div class="col-span-4 text-right">Subtotal</div>
+          <div class="mb-6 w-full">
+            <!-- Header Row -->
+            <div class="grid gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-4 pb-2 border-b border-gray-200" style="grid-template-columns: minmax(0, 1fr) 80px minmax(120px, auto);">
+              <div>Denomination</div>
+              <div class="text-center">Quantity</div>
+              <div class="text-right">Subtotal</div>
             </div>
             
-            <div class="space-y-2">
-              <div v-for="(item, index) in cashCounts" :key="item.denomination" class="grid grid-cols-12 gap-4 items-center bg-gray-50 p-2 rounded-lg">
-                <div class="col-span-4 font-medium text-gray-900">
+            <!-- Body Rows -->
+            <div class="space-y-1">
+              <div v-for="(item, index) in cashCounts" :key="item.denomination" 
+                   class="grid gap-4 items-center px-4 py-2 hover:bg-gray-50 rounded-lg transition-colors" 
+                   style="grid-template-columns: minmax(0, 1fr) 80px minmax(120px, auto);">
+                
+                <!-- Denomination -->
+                <div class="font-medium text-gray-900 whitespace-nowrap">
                   {{ formatCurrency(item.denomination) }}
                 </div>
-                <div class="col-span-4">
+                
+                <!-- Quantity -->
+                <div>
                   <input 
                     type="text" 
                     inputmode="numeric"
                     :value="item.quantityString"
                     @input="e => onQuantityInput(e, index)"
-                    class="block w-full text-center text-sm py-2 px-2 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    class="block w-full text-center text-sm py-1.5 px-2 border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     placeholder="0"
                     :disabled="isLoading"
                   />
                 </div>
-                <div class="col-span-4 text-right font-medium text-gray-700">
+                
+                <!-- Subtotal -->
+                <div class="text-right font-medium text-gray-700 whitespace-nowrap">
                   {{ formatCurrency(item.denomination * (parseInt(item.quantityString) || 0)) }}
                 </div>
+                
               </div>
             </div>
           </div>
           
-          <div class="flex justify-between items-center pt-4 border-t-2 border-gray-100">
+          <!-- Total Footer -->
+          <div class="flex justify-between items-center pt-5 mt-4 border-t-2 border-gray-200 px-4">
             <span class="font-bold text-gray-700 text-lg">Total Counted Cash</span>
             <span class="font-bold text-blue-600 text-2xl">{{ formatCurrency(actualCash) }}</span>
           </div>
